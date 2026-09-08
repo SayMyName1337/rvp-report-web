@@ -1,0 +1,208 @@
+/* Оформление приложения.
+   Палитра — корпоративный брендбук: основные ZN_01 и ZN_06,
+   вспомогательные ZN_02…ZN_09. Нейтрали выведены из ZN_01 и ZN_10.
+   Значения совпадают с rvp_report/render/theme.py: слайд и страница
+   должны выглядеть одинаково. */
+
+:root {
+    --blue: #00326E;          /* ZN_01 DarkBlue main */
+    --blue-deep: #001946;     /* ZN_02 */
+    --blue-mid: #005591;      /* ZN_03 */
+    --blue-light: #0078AF;    /* ZN_04 */
+    --green-dark: #0A8F2D;    /* ZN_05 */
+    --green: #4BAF46;         /* ZN_06 Green main */
+    --green-light: #9BC855;   /* ZN_07 */
+    --lime: #D2DC78;          /* ZN_08 */
+    --lime-pale: #EBF0D7;     /* ZN_09 */
+    --grey: #6E6E6E;          /* ZN_10 */
+
+    --amber: #B8820A;         /* предупреждение, из знака «Русвьетпетро» */
+    --red: #C0392B;           /* превышение норматива */
+
+    --ink: #000000;
+    --muted: #6E6E6E;
+    --line: #DDE3EA;
+    --panel: #F1F4F8;
+    --canvas: #FFFFFF;
+    --page: #F2F4F7;
+
+    --radius: 8px;
+    --shadow: 0 1px 2px rgba(0, 25, 70, .06), 0 4px 12px rgba(0, 25, 70, .05);
+    --font: "Segoe UI", "Inter", system-ui, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--ink);
+    background: var(--page);
+}
+
+a { color: var(--blue-mid); }
+
+/* --- Шапка --------------------------------------------------------------- */
+.masthead {
+    background: var(--blue);
+    color: #fff;
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+}
+
+.masthead__logo { height: 40px; }
+
+.masthead__title { font-size: 18px; font-weight: 600; }
+
+.masthead__subtitle { font-size: 13px; color: #A7BBD3; }
+
+.masthead__spacer { flex: 1; }
+
+.masthead__user { font-size: 13px; text-align: right; color: #A7BBD3; }
+
+.masthead__user strong { display: block; color: #fff; font-size: 14px; }
+
+.accent-rule { height: 3px; background: var(--green); }
+
+/* --- Навигация ----------------------------------------------------------- */
+.nav {
+    background: var(--canvas);
+    border-bottom: 1px solid var(--line);
+    padding: 0 28px;
+    display: flex;
+    gap: 4px;
+}
+
+.nav a {
+    padding: 12px 16px;
+    color: var(--ink);
+    text-decoration: none;
+    border-bottom: 3px solid transparent;
+    font-size: 14px;
+}
+
+.nav a:hover { background: var(--panel); }
+
+.nav a.is-active {
+    border-bottom-color: var(--green);
+    font-weight: 600;
+    color: var(--blue);
+}
+
+/* --- Каркас страницы ----------------------------------------------------- */
+.page { max-width: 1360px; margin: 0 auto; padding: 26px 28px 60px; }
+
+h1 { font-size: 26px; color: var(--blue); margin: 0 0 4px; }
+
+.page__subtitle { color: var(--muted); margin: 0 0 22px; font-size: 14px; }
+
+.card {
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 18px;
+}
+
+.card__title { font-size: 15px; font-weight: 600; color: var(--blue);
+               margin: 0 0 14px; }
+
+/* --- Заглушка неготового раздела ----------------------------------------- */
+.placeholder {
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 40px 24px;
+    text-align: center;
+    color: var(--muted);
+    background: var(--panel);
+}
+
+/* --- Формы --------------------------------------------------------------- */
+.field { margin-bottom: 16px; }
+
+.field label { display: block; font-size: 13px; color: var(--muted);
+               margin-bottom: 6px; }
+
+.field input {
+    width: 100%;
+    padding: 10px 12px;
+    font: inherit;
+    color: var(--ink);
+    background: #FAFBFC;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+.field input:focus { outline: none; border-color: var(--blue-light); }
+
+.button {
+    display: inline-block;
+    padding: 11px 22px;
+    font: inherit;
+    font-weight: 600;
+    color: #fff;
+    background: var(--green);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.button:hover { background: #3EA23C; }
+
+.button:active { background: var(--green-dark); }
+
+.errors {
+    background: #FDEDEB;
+    border-left: 3px solid var(--red);
+    color: var(--red);
+    padding: 10px 14px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+.notice {
+    background: var(--lime-pale);
+    border-left: 3px solid var(--green);
+    padding: 10px 14px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+/* --- Вход ---------------------------------------------------------------- */
+.login {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--blue);
+}
+
+.login__card {
+    background: var(--canvas);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 40px rgba(0, 25, 70, .35);
+    padding: 34px 36px;
+    width: 380px;
+}
+
+.login__logo { height: 42px; margin-bottom: 22px; }
+
+.login__title { font-size: 19px; font-weight: 600; color: var(--blue);
+                margin: 0 0 4px; }
+
+.login__hint { font-size: 13px; color: var(--muted); margin: 0 0 22px; }
+
+/* --- Подвал -------------------------------------------------------------- */
+.footer {
+    padding: 18px 28px 30px;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+}

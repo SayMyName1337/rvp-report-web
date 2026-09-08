@@ -1,0 +1,18 @@
+# -*- coding: utf-8 -*-
+"""Настройки для разработки.
+
+Отличаются от серверных только тем, что нужно для удобства работы:
+подробные ошибки, отключённые требования HTTPS и вывод писем в консоль.
+"""
+from __future__ import annotations
+
+from .base import *  # noqa: F401,F403
+from .base import env_list
+
+DEBUG = True
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]")
+
+INTERNAL_IPS = ["127.0.0.1"]
+
+# Писем в разработке никуда не отправляем — они печатаются в консоль.
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

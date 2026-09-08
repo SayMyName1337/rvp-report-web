@@ -1,0 +1,38 @@
+{% load static %}<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Вход — суточный рапорт</title>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    <link rel="icon" href="{% static 'img/rvp-logo.svg' %}">
+</head>
+<body class="login">
+<div class="login__card">
+    <img class="login__logo" src="{% static 'img/rvp-logo.svg' %}"
+         alt="Русвьетпетро">
+    <h1 class="login__title">Суточный рапорт</h1>
+    <p class="login__hint">
+        Вход по личной учётной записи. Если её нет — обратитесь
+        к администратору системы.
+    </p>
+
+    {% if form.errors %}
+        <div class="errors">Неверное имя пользователя или пароль.</div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="field">
+            <label for="id_username">Имя пользователя</label>
+            {{ form.username }}
+        </div>
+        <div class="field">
+            <label for="id_password">Пароль</label>
+            {{ form.password }}
+        </div>
+        <button class="button" type="submit" style="width:100%">Войти</button>
+    </form>
+</div>
+</body>
+</html>

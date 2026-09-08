@@ -1,0 +1,28 @@
+# База данных для разработки. Само приложение запускается локально
+# командой `python manage.py runserver`, чтобы не пересобирать образ
+# на каждую правку.
+#
+#   docker compose -f deploy/compose.dev.yaml up -d
+#
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: rvp-db-dev
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rvp}
+      POSTGRES_USER: ${POSTGRES_USER:-rvp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rvp}
+    # Порт 5433, а не 5432: на машине разработки может быть уже
+    # установленный PostgreSQL, и занимать стандартный порт нельзя.
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - rvp-db-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rvp}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  rvp-db-dev:
