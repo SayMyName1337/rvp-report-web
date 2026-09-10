@@ -174,10 +174,15 @@ DELIVERY.update({
 })
 DELIVERY["tn_plan_month"] = Scalar(Find("План сдачи в ТН на месяц", "starts"),
                                    dr=1, block="production", reference="U22")
-DELIVERY["forecast_total"] = Cross(row=Find("Всего", cols="B"),
+# Строка итога прогноза сдачи. Пока сдача шла в два адреса, итог стоял
+# отдельной строкой «Всего»; с августа 2026 остался один адрес, строку
+# «Всего» убрали, и итогом стала сама строка «На ПСП Головные».
+_FORECAST_ROW = Find("Всего", cols="B", alt=("На ПСП Головные",))
+
+DELIVERY["forecast_total"] = Cross(row=_FORECAST_ROW,
                                    col=Find("Прогноз сдачи, т/сут", "starts"),
                                    block="tanks", reference="D564")
-DELIVERY["forecast_rate_tph"] = Cross(row=Find("Всего", cols="B"),
+DELIVERY["forecast_rate_tph"] = Cross(row=_FORECAST_ROW,
                                       col=Find("Откачка, т/ч", "starts"),
                                       block="tanks", reference="E564")
 
@@ -240,16 +245,15 @@ DOWNTIME = Table(block="downtime", columns=dict(_WELL_COLUMNS),
                  reference_rows=(133, 445))
 
 # Готовая разбивка простоя по причинам — подписи внутри блока,
-# следом за подписью идут два числа: количество скважин и потери, т
+# следом за подписью идут два числа: количество скважин и потери, т.
+# Сами подписи здесь НЕ перечисляются: их состав в рапорте меняют
+# (в августе 2026 «Сезонная эксплуатация» уступила место «Ожиданию
+# СКО»), поэтому reader читает то, что написано в строках перед ИТОГО.
 #: Сколько строк над ИТОГО просматривать в поисках сводки по причинам.
 BREAKDOWN_DEPTH = 6
-
-DOWNTIME_BREAKDOWN = (
-    Find("Текущий простой по ограничению", "starts"),
-    Find("КРС, ОКРС", "starts"),
-    Find("КВД"),
-    Find("Сезонная эксплуатация", "starts"),
-)
+#: Сколько ячеек правее подписи причины просматривать в поисках её чисел.
+#: Подпись бывает объединена на три столбца, числа — ещё на два.
+BREAKDOWN_SPAN = 10
 
 VSP = Table(
     block="vsp", key_column="well", require=("field",),

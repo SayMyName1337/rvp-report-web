@@ -18,6 +18,13 @@ RELATIVE_TOLERANCE = 0.02
 #: Минимальное абсолютное расхождение, ниже которого сверка не срабатывает.
 ABSOLUTE_TOLERANCE = 1.0
 
+#: Допустимое расхождение разбивки простоя с его итогом, т/сут.
+#: Здесь не сверка двух источников, а точное тождество: причины должны
+#: складываться в общий простой. Поэтому допуск задан отдельно и жёстко —
+#: только на округление самих причин до сотых. Общий допуск в 2 % скрыл бы
+#: расхождение в 11 т, встретившееся в рапорте за 28.08.2026.
+BREAKDOWN_TOLERANCE = 1.0
+
 #: Порог расхождения закрытия добычи и факта ЦОМ, доли от закрытия.
 PRODUCTION_GAP = 0.05
 #: Во сколько раз факт закачки должен превысить режим, чтобы это заметили.
@@ -89,12 +96,32 @@ def _check_stock(report: DailyReport) -> None:
 
 
 def _check_breakdown(report: DailyReport) -> None:
-    """Разбивка простоя по причинам должна складываться в общий простой."""
+    """Разбивка простоя по причинам должна складываться в общий простой.
+
+    Сверяются и потери, и количество скважин: в рапорте за 28.08.2026
+    строка разбивки насчитала 83 скважины и 1 065 т, тогда как список,
+    строка ИТОГО и таблица фонда согласованно показывали 82 и 1 054 т.
+    """
     if not report.downtime_breakdown:
+        report.add_issue("warning", "Текущий простой",
+                         "не прочитана разбивка простоя по причинам")
         return
+
+    declared = report.downtime_total.qo
     parts = sum(qo for _name, _count, qo in report.downtime_breakdown)
-    compare(report, "Текущий простой: разбивка по причинам",
-            report.downtime_total.qo, parts, "т/сут")
+    if declared and abs(declared - parts) > BREAKDOWN_TOLERANCE:
+        report.add_issue(
+            "warning", "Текущий простой: разбивка по причинам",
+            f"причины дают {ru(parts, 1)} т/сут, "
+            f"а простой по списку — {ru(declared, 1)} т/сут")
+
+    wells = report.downtime_total.count
+    counted = sum(count for _name, count, _qo in report.downtime_breakdown)
+    if wells is not None and abs(wells - counted) > 0.5:
+        report.add_issue(
+            "warning", "Текущий простой: разбивка по причинам",
+            f"причины дают {ru(counted)} скв., "
+            f"а список — {ru(wells)} скв.")
 
 
 def _check_injection(report: DailyReport) -> None:

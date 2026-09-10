@@ -388,30 +388,58 @@ class ReportReader:
     def _read_downtime_breakdown(self) -> None:
         """Готовая разбивка простоя по причинам из строк перед ИТОГО.
 
-        Искать по всему блоку нельзя: короткие подписи вроде «КВД»
-        встречаются и в столбце «Причина остановки» у отдельных скважин.
-        Сводка всегда стоит непосредственно над строкой ИТОГО.
+        Причины не перечисляются заранее: их состав в рапорте меняют.
+        В августе 2026 года «Сезонная эксплуатация» уступила место
+        «Ожиданию СКО», и список известных подписей потерял бы 28,7 т
+        из общего простоя. Поэтому читается то, что написано.
+
+        Разбивка занимает строки, вплотную примыкающие к ИТОГО, и в
+        каждой из них помещается по несколько групп «подпись —
+        количество скважин — потери». Границей служит первая строка,
+        в которой таких групп нет: выше идут сводки по трубопроводам
+        с такими же по виду числами, и захватывать их нельзя.
+
+        Искать подписи по всему блоку тоже нельзя: короткие вроде «КВД»
+        встречаются в столбце «Причина остановки» у отдельных скважин.
         """
         r = self.report
         block = self.map.blocks.get("downtime")
         total_row = self.map.totals.get("downtime")
         if total_row is None:
             return
-        first = max(block[0] if block else 1, total_row - L.BREAKDOWN_DEPTH)
-        rows = (first, total_row)
-        for find in L.DOWNTIME_BREAKDOWN:
-            span = self.sheet.find(find.label, mode=find.mode, rows=rows)
-            if span is None:
-                continue
-            numbers = self.sheet.numbers_right(span.row, span.last_col,
-                                               limit=2, within=10)
-            if len(numbers) < 2:
-                continue
-            count, qo = numbers[0], numbers[1]
-            if count or qo:
-                r.downtime_breakdown.append((_text(span_text(self.sheet, span)),
-                                             count, qo))
+        limit = max(block[0] if block else 1, total_row - L.BREAKDOWN_DEPTH)
+        for row in range(total_row - 1, limit - 1, -1):
+            groups = self._breakdown_row(row)
+            if not groups:
+                break
+            r.downtime_breakdown.extend(
+                (name, count, qo) for name, count, qo in groups if count or qo)
         r.downtime_breakdown.sort(key=lambda x: x[2], reverse=True)
+
+    def _breakdown_row(self, row: int) -> list[tuple[str, float, float]]:
+        """Разобрать одну строку разбивки на группы «причина, скважины, потери».
+
+        Args:
+            row: Номер строки листа.
+
+        Returns:
+            Список троек в порядке следования по строке. Пустой список
+            означает, что строка к разбивке не относится.
+        """
+        groups: list[tuple[str, float, float]] = []
+        col = 1
+        while col <= self.sheet.max_col:
+            value = self.sheet.raw(row, col)
+            if not isinstance(value, str) or not value.strip():
+                col += 1
+                continue
+            span = self.sheet.span(row, col)
+            numbers = self.sheet.numbers_right(row, span.last_col, limit=2,
+                                               within=L.BREAKDOWN_SPAN)
+            if len(numbers) == 2:
+                groups.append((_text(value), numbers[0], numbers[1]))
+            col = span.last_col + 1
+        return groups
 
     def _read_vsp(self) -> None:
         """Внутрисменные потери: скважины и объём потерь."""
