@@ -75,6 +75,26 @@ def test_load_is_idempotent(sample: Path) -> None:
 
 
 @pytest.mark.django_db
+def test_losses_exclude_movement(sample: Path) -> None:
+    """Потери — это простой, бездействие и внутрисменные, и только они.
+
+    Запуски и остановки — движение фонда, а не потери. Включив их,
+    показатель доклада завысился бы: за 31.08.2026 вышло бы 1 994 т
+    вместо 1 725 т.
+    """
+    daily = load(sample)
+    report = store(daily, [])
+
+    expected = sum(value or 0.0 for value in (daily.downtime_total.qo,
+                                              daily.idle_total.qo,
+                                              daily.vsp_total.qo))
+    assert abs(report.total_losses - expected) < 0.01
+
+    everything = sum(item.qo or 0.0 for item in report.well_totals.all())
+    assert report.total_losses <= everything
+
+
+@pytest.mark.django_db
 def test_group_rows_go_to_events(sample: Path) -> None:
     """Строки вида «76 скважин» не должны становиться скважинами."""
     store(load(sample), [])

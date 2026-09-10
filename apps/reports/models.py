@@ -79,15 +79,22 @@ class Report(models.Model):
         """Отчётная дата в русской записи."""
         return f"Суточный рапорт {self.date:%d.%m.%Y}"
 
+    #: Списки, из которых складываются потери добычи. Запуски и остановки
+    #: сюда НЕ входят: это движение фонда, а не потери, и включать их
+    #: значило бы завысить показатель доклада.
+    LOSS_CATEGORIES = ("downtime", "idle", "vsp")
+
     @property
     def total_losses(self) -> float:
         """Суммарные потери добычи за сутки, т.
 
         В рапорте такой цифры нет: это сумма трёх величин, каждая
-        из которых в рапорте есть. Происхождение раскрывается
+        из которых в рапорте есть, — текущего простоя, бездействующего
+        фонда и внутрисменных потерь. Происхождение раскрывается
         в :class:`ProvenanceEntry`.
         """
-        return sum(item.qo or 0.0 for item in self.well_totals.all())
+        return sum(item.qo or 0.0 for item in self.well_totals.all()
+                   if item.category in self.LOSS_CATEGORIES)
 
 
 class WellTotals(models.Model):

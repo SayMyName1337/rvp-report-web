@@ -206,3 +206,186 @@ h1 { font-size: 26px; color: var(--blue); margin: 0 0 4px; }
     font-size: 12px;
     text-align: center;
 }
+
+/* --- Таблицы ------------------------------------------------------------- */
+.table-wrap { overflow-x: auto; }
+
+table.data {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+table.data th {
+    background: var(--blue);
+    color: #fff;
+    font-weight: 600;
+    text-align: left;
+    padding: 9px 12px;
+    white-space: nowrap;
+}
+
+table.data th.right, table.data td.right { text-align: right; }
+
+table.data td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--line);
+}
+
+table.data tbody tr:nth-child(even) { background: var(--panel); }
+
+table.data tbody tr:hover { background: var(--lime-pale); }
+
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.good { color: var(--green-dark); }
+.bad { color: var(--red); }
+.muted { color: var(--muted); }
+.warn { color: var(--amber); }
+
+/* Полоса вклада прямо в ячейке таблицы */
+.barcell { position: relative; }
+
+.barcell__fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    background: var(--lime-pale);
+    z-index: 0;
+}
+
+.barcell__text { position: relative; z-index: 1; }
+
+/* --- Плитки показателей -------------------------------------------------- */
+.tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.tile {
+    background: var(--panel);
+    border-left: 4px solid var(--blue-light);
+    border-radius: 6px;
+    padding: 12px 14px;
+}
+
+.tile--good { border-left-color: var(--green); }
+.tile--bad { border-left-color: var(--red); }
+.tile--warn { border-left-color: var(--amber); }
+
+.tile__label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+    margin-bottom: 4px;
+}
+
+.tile__value {
+    font-size: 26px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+}
+
+.tile__note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+.tile__mark {
+    float: right;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+/* --- Разделы карточки ---------------------------------------------------- */
+.section { scroll-margin-top: 70px; }
+
+.section__head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 0 0 14px;
+}
+
+.section__head h2 {
+    font-size: 17px;
+    color: var(--blue);
+    margin: 0;
+}
+
+.section__note { font-size: 13px; color: var(--muted); }
+
+.columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 18px;
+}
+
+/* --- Шапка карточки ------------------------------------------------------ */
+.daybar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.daybar__spacer { flex: 1; }
+
+.badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.badge--ok { background: var(--lime-pale); color: var(--green-dark); }
+.badge--warn { background: #FCF3DC; color: var(--amber); }
+.badge--bad { background: #FDEDEB; color: var(--red); }
+
+.linkbutton {
+    display: inline-block;
+    padding: 8px 16px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--canvas);
+    color: var(--blue);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.linkbutton:hover { border-color: var(--blue-light); background: var(--panel); }
+
+.linkbutton--ghost { border-style: dashed; color: var(--muted); }
+
+/* --- Пропуск в череде суток ---------------------------------------------- */
+tr.gap td {
+    background: #FCF3DC;
+    color: var(--amber);
+    font-weight: 600;
+    text-align: center;
+}
+
+/* --- Формула расчёта ----------------------------------------------------- */
+.formula {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 13px;
+    color: var(--muted);
+    white-space: pre-wrap;
+}
+
+/* --- Узкие экраны -------------------------------------------------------- */
+@media (max-width: 700px) {
+    .masthead { padding: 12px 16px; gap: 14px; }
+    .masthead__logo { height: 30px; }
+    .masthead__user { display: none; }
+    .nav { padding: 0 10px; overflow-x: auto; }
+    .page { padding: 16px 12px 40px; }
+    .card { padding: 16px 14px; }
+    h1 { font-size: 21px; }
+    .tile__value { font-size: 22px; }
+}

@@ -1,14 +1,95 @@
 {% extends "base.html" %}
+{% load rvp %}
 
 {% block title %}Суточные рапорты{% endblock %}
 
 {% block content %}
     <h1>Суточные рапорты</h1>
-    <p class="page__subtitle">Загруженные сутки, замечания к данным и презентации</p>
+    <p class="page__subtitle">
+        Загружено суток: {{ total }}{% if missing %} ·
+        <span class="warn">пропусков в череде дат: {{ missing }}</span>{% endif %}{% if needs_review %} ·
+        <span class="warn">требуют подтверждения: {{ needs_review }}</span>{% endif %}
+    </p>
 
-    <div class="card">
-        <div class="placeholder">
-            Загрузка и разбор рапортов появятся на третьем этапе.
+    {% if not rows %}
+        <div class="card">
+            <div class="placeholder">
+                Ни одного рапорта пока не загружено.
+            </div>
         </div>
-    </div>
+    {% else %}
+        <div class="card">
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th class="num">Добыча, т</th>
+                            <th class="num">± к БП</th>
+                            <th class="num">Потери, т</th>
+                            <th class="num">Сдача, т</th>
+                            <th class="num">Утилизация</th>
+                            <th>Состояние</th>
+                            <th>Загрузил</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in rows %}
+                        {% if row.kind == "gap" %}
+                            <tr class="gap">
+                                <td colspan="8">
+                                    Нет данных: {{ row.days }}
+                                    {% if row.days == 1 %}сутки{% else %}суток{% endif %} —
+                                    с {{ row.since|date:"d.m.Y" }}
+                                    по {{ row.until|date:"d.m.Y" }}
+                                </td>
+                            </tr>
+                        {% else %}
+                            {% with report=row.report %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'reports:detail' report.date %}">
+                                        {{ report.date|date:"d.m.Y" }}
+                                    </a>
+                                </td>
+                                <td class="num">{{ report.production.closed_day|num:1 }}</td>
+                                <td class="num {{ report.production.dev_bp_day|deviation_class }}">
+                                    {{ report.production.dev_bp_day|signed:1 }}
+                                </td>
+                                <td class="num">{{ report.total_losses|num:1 }}</td>
+                                <td class="num">{{ report.delivery.fact_day|num:0 }}</td>
+                                <td class="num">{{ report.gas_utilization_pct|num:2 }}</td>
+                                <td>
+                                    {% if report.status == "needs_review" %}
+                                        <span class="badge badge--warn">требует подтверждения</span>
+                                    {% elif row.issues.error %}
+                                        <span class="badge badge--bad">ошибок: {{ row.issues.error }}</span>
+                                    {% elif row.issues.warning %}
+                                        <span class="badge badge--warn">замечаний: {{ row.issues.warning }}</span>
+                                    {% else %}
+                                        <span class="badge badge--ok">без замечаний</span>
+                                    {% endif %}
+                                </td>
+                                <td class="muted">
+                                    {% for upload in report.uploads.all %}
+                                        {{ upload.uploaded_by.short_name|default:upload.uploaded_by.username }}
+                                    {% empty %}—{% endfor %}
+                                </td>
+                            </tr>
+                            {% endwith %}
+                        {% endif %}
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if missing %}
+            <p class="page__subtitle">
+                Пропущенные сутки показаны отдельными строками: без них
+                сводка за период считается не по полному месяцу, и это
+                надо видеть до того, как цифра попадёт в доклад.
+            </p>
+        {% endif %}
+    {% endif %}
 {% endblock %}

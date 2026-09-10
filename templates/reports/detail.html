@@ -1,0 +1,446 @@
+{% extends "base.html" %}
+{% load rvp %}
+
+{% block title %}Сутки {{ report.date|date:"d.m.Y" }}{% endblock %}
+
+{% block content %}
+    <div class="daybar">
+        <h1 style="margin:0">Суточный рапорт {{ report.date|date:"d.m.Y" }}</h1>
+        {% if report.status == "needs_review" %}
+            <span class="badge badge--warn">требует подтверждения</span>
+        {% elif issues %}
+            <span class="badge badge--warn">замечаний: {{ issues|length }}</span>
+        {% else %}
+            <span class="badge badge--ok">без замечаний</span>
+        {% endif %}
+        <div class="daybar__spacer"></div>
+        {% if previous %}
+            <a class="linkbutton" href="{% url 'reports:detail' previous.date %}">←
+                {{ previous.date|date:"d.m" }}</a>
+        {% endif %}
+        {% if next %}
+            <a class="linkbutton" href="{% url 'reports:detail' next.date %}">{{ next.date|date:"d.m" }}
+                →</a>
+        {% endif %}
+        <a class="linkbutton" href="{% url 'reports:sources' report.date %}">Откуда цифры</a>
+    </div>
+
+    <p class="page__subtitle">
+        Погода: {{ report.temperature|num:0 }} °C, ветер {{ report.wind|default:"—" }}
+        {% if upload %}
+            · загружено {{ upload.uploaded_at|date:"d.m.Y H:i" }},
+            {{ upload.uploaded_by.short_name|default:upload.uploaded_by.username }}
+        {% endif %}
+    </p>
+
+    {# --- Ключевые показатели ------------------------------------------- #}
+    {% with p=report.production d=report.delivery %}
+    <div class="tiles">
+        <div class="tile tile--good">
+            <div class="tile__label">Добыча нефти, т</div>
+            <div class="tile__value">{{ p.closed_day|num:1 }}</div>
+            <div class="tile__note">план СГ {{ p.plan_sg_day|num:0 }} ·
+                <span class="{{ p.dev_sg_day|deviation_class }}">{{ p.dev_sg_day|signed:1 }}</span></div>
+        </div>
+        <div class="tile {% if p.dev_bp_day >= 0 %}tile--good{% else %}tile--bad{% endif %}">
+            <div class="tile__label">К бизнес-плану, т/сут</div>
+            <div class="tile__value {{ p.dev_bp_day|deviation_class }}">{{ p.dev_bp_day|signed:1 }}</div>
+            <div class="tile__note">план БП {{ p.plan_bp_day|num:0 }}</div>
+        </div>
+        <div class="tile">
+            <div class="tile__label">Нарастающая за месяц, т</div>
+            <div class="tile__value">{{ p.cumulative_month|num:0 }}</div>
+            <div class="tile__note {{ p.dev_bp_month|deviation_class }}">
+                {{ p.dev_bp_month|signed:0 }} к БП</div>
+        </div>
+        <div class="tile tile--bad">
+            <div class="tile__label">Потери добычи, т/сут<span class="tile__mark">расч.</span></div>
+            <div class="tile__value">{{ losses.total|num:1 }}</div>
+            <div class="tile__note">{{ losses.share|num:1 }} % от добычи</div>
+        </div>
+        <div class="tile">
+            <div class="tile__label">Фонд в работе</div>
+            <div class="tile__value">{{ stock_total.in_work|num:0 }}</div>
+            <div class="tile__note {{ stock_total.in_work_delta|deviation_class }}">
+                {{ stock_total.in_work_delta|signed:0 }} за сутки</div>
+        </div>
+        <div class="tile {% if report.gas_utilization_pct >= 95 %}tile--good{% else %}tile--bad{% endif %}">
+            <div class="tile__label">Утилизация газа</div>
+            <div class="tile__value">{{ report.gas_utilization_pct|num:2 }} %</div>
+            <div class="tile__note">целевой уровень — не ниже 95 %</div>
+        </div>
+        <div class="tile">
+            <div class="tile__label">Сдача нефти, т</div>
+            <div class="tile__value">{{ d.fact_day|num:0 }}</div>
+            <div class="tile__note">план {{ d.plan_day|num:0 }} ·
+                <span class="{{ d.dev_day|deviation_class }}">{{ d.dev_day|signed:0 }}</span></div>
+        </div>
+        <div class="tile">
+            <div class="tile__label">Выработка Э/Э, МВт·ч</div>
+            <div class="tile__value">{{ report.power.total_with_psp|num:1 }}</div>
+            <div class="tile__note {{ report.power.total_with_psp_delta|deviation_class }}">
+                {{ report.power.total_with_psp_delta|signed:2 }} к прошлым суткам</div>
+        </div>
+    </div>
+    {% endwith %}
+
+    {# --- Потери --------------------------------------------------------- #}
+    <div class="card section">
+        <div class="section__head">
+            <h2>Потери добычи</h2>
+            <span class="section__note">величина расчётная — в рапорте её нет</span>
+        </div>
+        <p class="formula">{% for name, value in losses.parts %}{% if not forloop.first %}
+  + {% else %}    {% endif %}{{ value|num:3 }} ({{ name }}){% endfor %}
+  = {{ losses.total|num:3 }} т/сут</p>
+
+        <div class="columns" style="margin-top:16px">
+            <div>
+                <div class="card__title">Причины текущего простоя</div>
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead><tr><th>Причина</th><th class="num">Скв.</th>
+                            <th class="num">Потери, т</th></tr></thead>
+                        <tbody>
+                        {% for item in breakdown %}
+                            <tr>
+                                <td>{{ item.reason.name }}</td>
+                                <td class="num">{{ item.wells_count|num:0 }}</td>
+                                <td class="num barcell">
+                                    <span class="barcell__fill"
+                                          style="width:{{ item.qo|bar:losses.total }}%"></span>
+                                    <span class="barcell__text">{{ item.qo|num:1 }}</span>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="3" class="muted">разбивка не прочитана</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div>
+                <div class="card__title">Наибольшие потери по скважинам</div>
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead><tr><th>Скважина</th><th>Причина</th>
+                            <th class="num">т/сут</th></tr></thead>
+                        <tbody>
+                        {% for item in top_wells %}
+                            <tr>
+                                <td>{{ item.well.number }}
+                                    <span class="muted">{{ item.well.field.short_name|default:item.well.field.name }}</span></td>
+                                <td class="muted">{{ item.reason|truncatechars:32 }}</td>
+                                <td class="num">{{ item.qo|num:1 }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="3" class="muted">нет данных</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {% if group_events %}
+            <div class="card__title" style="margin-top:18px">Групповые события</div>
+            <p class="section__note" style="display:block;margin:-8px 0 10px">
+                Строки рапорта, относящиеся не к одной скважине, а к группе:
+                по каким именно скважинам — в рапорте не сказано, поэтому
+                в историю отдельной скважины они не попадают.
+            </p>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Как записано</th><th>Месторождения</th>
+                        <th>Причина</th><th class="num">т/сут</th></tr></thead>
+                    <tbody>
+                    {% for item in group_events %}
+                        <tr>
+                            <td>{{ item.subject }}</td>
+                            <td class="muted">{{ item.fields_text|default:"—" }}</td>
+                            <td>{{ item.reason|default:"—" }}
+                                {% if item.note %}<span class="muted">· {{ item.note|truncatechars:60 }}</span>{% endif %}</td>
+                            <td class="num">{{ item.qo|num:1 }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+
+    {# --- Добыча по месторождениям --------------------------------------- #}
+    <div class="card section">
+        <div class="section__head">
+            <h2>Добыча по месторождениям</h2>
+            <span class="section__note">всего {{ fields_total|num:1 }} т</span>
+        </div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Месторождение</th><th class="num">т/сут</th>
+                    <th class="num">доля</th></tr></thead>
+                <tbody>
+                {% for item in fields %}
+                    <tr>
+                        <td>{{ item.field.name }}</td>
+                        <td class="num barcell">
+                            <span class="barcell__fill"
+                                  style="width:{{ item.qo|bar:fields_total }}%"></span>
+                            <span class="barcell__text">{{ item.qo|num:1 }}</span>
+                        </td>
+                        <td class="num muted">{{ item.qo|share:fields_total }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# --- Фонд ----------------------------------------------------------- #}
+    <div class="card section">
+        <div class="section__head">
+            <h2>Состояние фонда скважин</h2>
+            {% with s=stock_total %}
+            <span class="section__note">
+                эксплуатационный {{ s.operating_stock|num:0 }} ·
+                в работе {{ s.in_work|num:0 }} ·
+                простой {{ s.in_downtime|num:0 }} ·
+                бездействие {{ s.in_idle|num:0 }}
+            </span>
+            {% endwith %}
+        </div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Месторождение</th><th class="num">Всего</th>
+                    <th class="num">В работе</th><th class="num">Простой</th>
+                    <th class="num">т/сут</th><th class="num">Бездействие</th>
+                    <th class="num">т/сут</th></tr></thead>
+                <tbody>
+                {% for item in stock %}
+                    <tr>
+                        <td>{{ item.field.name }}</td>
+                        <td class="num">{{ item.total|num:0 }}</td>
+                        <td class="num">{{ item.in_work|num:0 }}</td>
+                        <td class="num">{{ item.in_downtime|num:0 }}</td>
+                        <td class="num muted">{{ item.downtime_rate|num:1 }}</td>
+                        <td class="num">{{ item.in_idle|num:0 }}</td>
+                        <td class="num muted">{{ item.idle_rate|num:1 }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# --- ППД и сдача ---------------------------------------------------- #}
+    <div class="columns">
+        <div class="card section">
+            <div class="section__head"><h2>Поддержание пластового давления</h2></div>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Объект</th><th class="num">Режим, м³</th>
+                        <th class="num">Факт, м³</th><th class="num">±</th></tr></thead>
+                    <tbody>
+                    {% for item in injection %}
+                        <tr>
+                            <td>{% if item.is_total %}<strong>Всего</strong>{% else %}{{ item.object.name }}{% endif %}</td>
+                            <td class="num">{{ item.plan_day|num:0 }}</td>
+                            <td class="num">{{ item.fact_day|num:0 }}</td>
+                            <td class="num {{ item.dev_day|deviation_class }}">{{ item.dev_day|signed:0 }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card section">
+            <div class="section__head"><h2>Резервуарный парк</h2>
+                <span class="section__note">свободно {{ report.free_volume_total_m3|num:0 }} м³</span></div>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Резервуар</th><th class="num">Взлив, м</th>
+                        <th class="num">Объём, м³</th><th class="num">Свободно, м³</th></tr></thead>
+                    <tbody>
+                    {% for item in tanks %}
+                        <tr>
+                            <td>{{ item.tank.name }}</td>
+                            <td class="num">{{ item.level|num:2 }}</td>
+                            <td class="num">{{ item.volume|num:0 }}</td>
+                            <td class="num">{{ item.free|num:0 }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {# --- Качество и газ ------------------------------------------------- #}
+    <div class="columns">
+        <div class="card section">
+            <div class="section__head"><h2>Качество товарной нефти</h2></div>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Узел учёта</th><th class="num">ρ, кг/м³</th>
+                        <th class="num">Вода, %</th><th class="num">H₂S, ppm</th>
+                        <th class="num">Соли, мг/дм³</th></tr></thead>
+                    <tbody>
+                    {% for item in quality %}
+                        <tr>
+                            <td>{{ item.node.name }}</td>
+                            <td class="num">{{ item.density|num:1 }}</td>
+                            <td class="num">{{ item.water|num:2 }}</td>
+                            <td class="num">{{ item.h2s|num:1 }}</td>
+                            <td class="num">{{ item.salts|num:1 }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card section">
+            <div class="section__head"><h2>Попутный нефтяной газ</h2>
+                <span class="section__note">утилизация {{ report.gas_utilization_pct|num:2 }} %</span></div>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Показатель</th><th class="num">БП, тыс. м³</th>
+                        <th class="num">Факт, тыс. м³</th><th class="num">Год</th></tr></thead>
+                    <tbody>
+                    {% for item in gas %}
+                        <tr>
+                            <td>{{ item.get_kind_display }}</td>
+                            <td class="num">{{ item.day_plan|num:1 }}</td>
+                            <td class="num">{{ item.day_fact|num:1 }}</td>
+                            <td class="num muted">{{ item.year_fact|num:0 }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {# --- Энергетика и бурение ------------------------------------------- #}
+    <div class="columns">
+        <div class="card section">
+            <div class="section__head"><h2>Энергетика</h2>
+                {% with p=report.power %}
+                <span class="section__note">
+                    газ {{ p.generation_gas|num:1 }} · нефть {{ p.generation_oil|num:2 }} ·
+                    ДТ {{ p.generation_diesel|num:2 }} МВт</span>
+                {% endwith %}
+            </div>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Объект</th><th class="num">Остаток ДТ, т</th></tr></thead>
+                    <tbody>
+                    {% for item in diesel %}
+                        <tr><td>{{ item.object.name }}</td>
+                            <td class="num">{{ item.tons|num:1 }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card section">
+            <div class="section__head"><h2>Бурение</h2>
+                <span class="section__note">{{ drilling|length }} скв. в работе подрядчиков</span></div>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Подрядчик</th><th>Скв.</th>
+                        <th class="num">Проект, м</th><th class="num">Забой, м</th></tr></thead>
+                    <tbody>
+                    {% for item in drilling %}
+                        <tr>
+                            <td>{{ item.contractor.name }}
+                                <span class="muted">{{ item.field.short_name|default:item.field.name }}</span></td>
+                            <td>{{ item.well_number }}</td>
+                            <td class="num">{{ item.target_depth|num:0 }}</td>
+                            <td class="num">{{ item.current_depth_text|default_if_none:""|default:item.current_depth|default:"—" }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {# --- Вывод на режим и очистные устройства ---------------------------- #}
+    {% if ramp_up or pigging %}
+    <div class="columns">
+        {% if ramp_up %}
+        <div class="card section">
+            <div class="section__head"><h2>Вывод на режим</h2></div>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Скважина</th><th>ГТМ</th>
+                        <th class="num">План, т</th><th class="num">Факт, т</th></tr></thead>
+                    <tbody>
+                    {% for item in ramp_up %}
+                        <tr>
+                            <td>{{ item.well.number }}
+                                <span class="muted">{{ item.well.field.short_name|default:item.well.field.name }}</span></td>
+                            <td class="muted">{{ item.gtm|truncatechars:28 }}</td>
+                            <td class="num">{{ item.plan_qo|num:1 }}</td>
+                            <td class="num">{{ item.fact_qo|num:1 }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if pigging %}
+        <div class="card section">
+            <div class="section__head"><h2>Очистные устройства</h2></div>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Участок</th><th>Пуск</th><th>Приём</th>
+                        <th class="num">В пути, ч</th></tr></thead>
+                    <tbody>
+                    {% for item in pigging %}
+                        <tr>
+                            <td>{{ item.section|default:item.line|truncatechars:40 }}</td>
+                            <td class="muted">{{ item.launch|date:"d.m H:i"|default:"—" }}</td>
+                            <td class="muted">{{ item.receive|date:"d.m H:i"|default:"—" }}</td>
+                            <td class="num">{{ item.travel_h|num:1 }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# --- Замечания ------------------------------------------------------ #}
+    {% if issues %}
+    <div class="card section">
+        <div class="section__head">
+            <h2>Замечания к исходным данным</h2>
+            <span class="section__note">найдены при загрузке, в рапорте не исправлялись</span>
+        </div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Уровень</th><th>Блок</th><th>Замечание</th></tr></thead>
+                <tbody>
+                {% for item in issues %}
+                    <tr>
+                        <td class="{% if item.level == 'error' %}bad{% else %}warn{% endif %}">
+                            {{ item.get_level_display }}</td>
+                        <td>{{ item.where }}</td>
+                        <td>{{ item.message }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}

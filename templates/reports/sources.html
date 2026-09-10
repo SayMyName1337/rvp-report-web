@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load rvp %}
+
+{% block title %}Откуда цифры — {{ report.date|date:"d.m.Y" }}{% endblock %}
+
+{% block content %}
+    <div class="daybar">
+        <h1 style="margin:0">Откуда цифры</h1>
+        <div class="daybar__spacer"></div>
+        <a class="linkbutton" href="{% url 'reports:detail' report.date %}">
+            ← к суткам {{ report.date|date:"d.m.Y" }}</a>
+    </div>
+
+    <p class="page__subtitle">
+        Требование доклада: любое число можно проверить по рапорту.
+        Здесь записано происхождение каждого показателя — адрес ячейки,
+        диапазон суммирования или формула расчёта.
+        Всего показателей: {{ total }}{% if upload %},
+        файл — {{ upload.original_name }}{% endif %}.
+    </p>
+
+    {% if derived %}
+        <div class="card">
+            <div class="card__title">Величины, посчитанные программой</div>
+            <p class="section__note" style="display:block;margin:-8px 0 12px">
+                Этих цифр в рапорте нет: они получены арифметически.
+                На слайдах такие величины помечаются словом «расч.».
+            </p>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Показатель</th><th class="num">Значение</th>
+                        <th>Как получено</th></tr></thead>
+                    <tbody>
+                    {% for item in derived %}
+                        <tr>
+                            <td>{{ item.label }}</td>
+                            <td class="num">{{ item.value }}</td>
+                            <td class="formula">{{ item.origin }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+
+    {% for label, entries in groups %}
+        {% if entries %}
+            <div class="card">
+                <div class="card__title">{{ label }} — {{ entries|length }}</div>
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead><tr><th>Раздел</th><th>Показатель</th>
+                            <th class="num">Значение</th><th>Источник</th></tr></thead>
+                        <tbody>
+                        {% for item in entries %}
+                            <tr>
+                                <td class="muted">{{ item.section }}</td>
+                                <td>{{ item.label }}</td>
+                                <td class="num">{{ item.value }}</td>
+                                <td class="formula">{{ item.origin }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endif %}
+    {% endfor %}
+
+    {% if not total %}
+        <div class="card">
+            <div class="placeholder">
+                Происхождение показателей за эти сутки не записано.
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}
