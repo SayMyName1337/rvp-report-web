@@ -30,17 +30,31 @@ def test_hse_stores_only_counts() -> None:
 
 
 @pytest.mark.parametrize("written,expected", [
-    ("Северо-Ошкотынское", "северо ошкотынское"),
-    ("  Северо—Ошкотынское  ", "северо ошкотынское"),
-    ("СЕВЕРО-ОШКОТЫНСКОЕ", "северо ошкотынское"),
+    ("Северо-Ошкотынское", "североошкотынское"),
+    ("  Северо—Ошкотынское  ", "североошкотынское"),
+    ("СЕВЕРО-ОШКОТЫНСКОЕ", "североошкотынское"),
     ("Тёдинское", "тединское"),
-    ("ЦПС РВС-5000", "цпс рвс 5000"),
+    ("ЦПС РВС-5000", "цпсрвс5000"),
     ("", ""),
 ])
 def test_normalize_ignores_meaningless_differences(written: str,
                                                    expected: str) -> None:
     """Регистр, пробелы, дефисы и «ё» не должны различать названия."""
     assert normalize(written) == expected
+
+
+@pytest.mark.parametrize("one,other", [
+    ("Верхне-Колвинское", "Верхнеколвинское"),
+    ("ЦПС РВС-5000", "ЦПС РВС 5000"),
+    ("Северо-Хоседаюское", "СЕВЕРО–ХОСЕДАЮСКОЕ"),
+])
+def test_spelling_variants_are_the_same_name(one: str, other: str) -> None:
+    """Написания, различающиеся только оформлением, — одно название.
+
+    «Верхне-Колвинское» и «Верхнеколвинское» встретились в одном
+    и том же августовском рапорте.
+    """
+    assert normalize(one) == normalize(other)
 
 
 @pytest.mark.django_db
@@ -70,22 +84,60 @@ def test_new_field_is_created_for_review() -> None:
 
 
 @pytest.mark.django_db
-def test_well_keeps_its_field() -> None:
-    """Скважина не переезжает на другое месторождение.
+def test_well_is_identified_by_field_and_number() -> None:
+    """Один и тот же номер на разных месторождениях — разные скважины.
 
-    Расхождение — признак ошибки в рапорте, а не повод завести вторую
-    скважину с тем же номером.
+    В августе 2026 скважина №2 нашлась одновременно на Висовом,
+    Сюрхаратинском и Северо-Хоседаюском.
     """
-    one = Field.objects.create(name="Западно-Хоседаюское")
-    other = Field.objects.create(name="Висовое")
+    visovoe = Field.objects.create(name="Висовое")
+    surh = Field.objects.create(name="Сюрхаратинское")
 
-    well, warning = get_well("32201", one)
-    assert well is not None and not warning
+    first, warning = get_well("2", visovoe)
+    assert first is not None and not warning
 
-    same, warning = get_well("32201", other)
-    assert same == well, "скважина не должна раздвоиться"
-    assert same.field == one, "месторождение скважины меняться не должно"
-    assert "Висовое" in warning and "Западно-Хоседаюское" in warning
+    second, warning = get_well("2", surh)
+    assert second is not None and not warning
+    assert second != first, "скважины на разных месторождениях — разные"
+
+    again, _warning = get_well("2", visovoe)
+    assert again == first, "повторный вызов не должен создавать двойника"
+
+
+@pytest.mark.django_db
+def test_well_without_field_is_not_created() -> None:
+    """Без месторождения скважину опознать нельзя."""
+    well, warning = get_well("2", None)
+    assert well is None
+    assert "не указано месторождение" in warning
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("short,full", [
+    ("Сюрх", "Сюрхаратинское"),
+    ("С.Ошк", "Северо-Ошкотынское"),
+    ("ЗХ", "Западно-Хоседаюское"),
+    ("СХ", "Северо-Хоседаюское"),
+    ("Вис", "Висовое"),
+])
+def test_abbreviations_are_recognised(short: str, full: str) -> None:
+    """Сокращения из блока бурения должны опознаваться как подсказка."""
+    from apps.catalog.services import looks_like_abbreviation
+
+    assert looks_like_abbreviation(short, full)
+
+
+@pytest.mark.parametrize("short,full", [
+    ("СХ", "Северо-Сихорейское"),
+    ("Висовое", "Висовое"),
+    ("Сюрхаратинское", "Сюрх"),
+    ("Лыдушорское", "Мусюршорское"),
+])
+def test_unrelated_names_are_not_abbreviations(short: str, full: str) -> None:
+    """Догадка не должна срабатывать на посторонних названиях."""
+    from apps.catalog.services import looks_like_abbreviation
+
+    assert not looks_like_abbreviation(short, full)
 
 
 @pytest.mark.django_db

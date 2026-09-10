@@ -422,6 +422,55 @@ class WellDaily(DailyRow):
         return f"{self.well.number} — {self.get_category_display()}"
 
 
+class GroupEvent(DailyRow):
+    """Событие сразу по нескольким скважинам.
+
+    В списках рапорта встречаются строки, где вместо номера скважины
+    записано «76 скважин» или «куст №1», а вместо месторождения —
+    перечень: «СХ, Вис, ЗХ, Сюрх, ВЯ». Это не скважины, а групповые
+    события — остановка куста, реконструкция ДНС, массовый перезапуск.
+
+    Разносить их по отдельным скважинам нельзя: в рапорте не сказано,
+    по каким именно. Но и терять нельзя: в августе 2026 такие строки
+    несли 4 781 т потерь. Поэтому они хранятся как есть, отдельно
+    от скважин, и в историю конкретной скважины не попадают.
+    """
+
+    report = models.ForeignKey(Report, on_delete=models.CASCADE,
+                               related_name="group_events",
+                               verbose_name="Сутки")
+    category = models.CharField("Список", max_length=20,
+                                choices=WellDaily.Category.choices,
+                                db_index=True)
+    subject = models.CharField("Как записано", max_length=200)
+    fields_text = models.CharField("Месторождения, как записано",
+                                   max_length=300, blank=True)
+    field = models.ForeignKey(Field, on_delete=models.PROTECT, null=True,
+                              blank=True, verbose_name="Месторождение",
+                              help_text="Заполнено, если событие относится "
+                                        "к одному месторождению.")
+    wells_count = number("Скважин в событии")
+
+    qo = number("Потери нефти, т/сут")
+    ql = number("Жидкость, м³/сут")
+    wc = number("Обводнённость, %")
+
+    reason = models.CharField("Причина", max_length=300, blank=True)
+    code = models.CharField("Код", max_length=60, blank=True)
+    days = models.CharField("Длительность", max_length=60, blank=True)
+    status = models.CharField("Состояние", max_length=300, blank=True)
+    note = models.CharField("Примечание", max_length=500, blank=True)
+
+    class Meta:
+        verbose_name = "групповое событие"
+        verbose_name_plural = "групповые события"
+        ordering = ("-qo",)
+
+    def __str__(self) -> str:
+        """Как записано в рапорте и потери."""
+        return f"{self.subject}: {self.qo} т/сут"
+
+
 class RampUpDaily(DailyRow):
     """Скважина на выводе на режим или под контролем после ГТМ."""
 

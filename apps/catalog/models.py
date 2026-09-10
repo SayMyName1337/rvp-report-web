@@ -17,16 +17,20 @@ import re
 
 from django.db import models
 
-_SPACES = re.compile(r"\s+")
-_PUNCT = re.compile(r"[«»\"'()\[\],;:.!?—–-]+")
+_NOT_ALNUM = re.compile(r"[^0-9a-zа-я]+")
 
 
 def normalize(value: str) -> str:
     """Название к виду, пригодному для сравнения.
 
-    Убирает регистр, лишние пробелы, знаки препинания и различие «е/ё» —
-    ровно те расхождения, которые в рапорте встречаются постоянно
-    и ничего не означают.
+    Из названия удаляется всё, кроме букв и цифр, а «ё» приводится к «е».
+    Так совпадают написания, различающиеся только оформлением, — а именно
+    они в рапорте и встречаются: «Верхне-Колвинское» и «Верхнеколвинское»
+    это одно месторождение, «ЦПС РВС-5000» и «ЦПС РВС 5000» — один
+    резервуар.
+
+    Настоящие сокращения («С.Ошк» вместо «Северо-Ошкотынское») так
+    не сводятся и требуют синонима в справочнике.
 
     Args:
         value: Название как оно записано в рапорте.
@@ -37,8 +41,25 @@ def normalize(value: str) -> str:
     if not value:
         return ""
     text = str(value).replace("­", "").strip().lower().replace("ё", "е")
-    text = _PUNCT.sub(" ", text)
-    return _SPACES.sub(" ", text).strip()
+    return _NOT_ALNUM.sub("", text)
+
+
+def segments(value: str) -> list[str]:
+    """Название, разбитое на части по разделителям.
+
+    Части нужны для распознавания сокращений: «С.Ошк» состоит из «с»
+    и «ошк», а «Северо-Ошкотынское» — из «северо» и «ошкотынское».
+
+    Args:
+        value: Название как оно записано в рапорте.
+
+    Returns:
+        Части названия в нижнем регистре, без пустых.
+    """
+    if not value:
+        return []
+    text = str(value).replace("­", "").strip().lower().replace("ё", "е")
+    return [part for part in _NOT_ALNUM.split(text) if part]
 
 
 class Reference(models.Model):
@@ -112,10 +133,11 @@ class FieldAlias(models.Model):
 class Well(models.Model):
     """Скважина.
 
-    Номер уникален по компании: он и служит опознанием. Месторождение
-    хранится связью — если в рапорте у известной скважины окажется другое
-    месторождение, это повод для замечания, а не для новой записи:
-    скважины между месторождениями не переезжают.
+    Опознаётся парой «месторождение и номер»: номера повторяются между
+    месторождениями. В августе 2026 скважина №2 нашлась одновременно
+    на Висовом, Сюрхаратинском и Северо-Хоседаюском, а №7 — ещё
+    и на Западно-Хоседаюском. Поэтому уникален не номер сам по себе,
+    а его сочетание с месторождением.
     """
 
     class Category(models.TextChoices):
@@ -126,8 +148,7 @@ class Well(models.Model):
         OBSERVATION = "observation", "Наблюдательная"
         UNKNOWN = "unknown", "Не определено"
 
-    number = models.CharField("Номер", max_length=40, unique=True,
-                              db_index=True)
+    number = models.CharField("Номер", max_length=40, db_index=True)
     field = models.ForeignKey(Field, on_delete=models.PROTECT,
                               related_name="wells",
                               verbose_name="Месторождение")
@@ -143,6 +164,8 @@ class Well(models.Model):
         verbose_name = "скважина"
         verbose_name_plural = "скважины"
         ordering = ("field__name", "number")
+        constraints = [models.UniqueConstraint(
+            fields=("field", "number"), name="unique_well_in_field")]
 
     def __str__(self) -> str:
         """Номер скважины с месторождением."""
