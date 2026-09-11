@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load rvp %}
+{% load static rvp %}
 
 {% block title %}Дашборд — суточный рапорт{% endblock %}
 
@@ -7,7 +7,9 @@
     <div class="daybar">
         <h1 style="margin:0">Оперативные данные промысла</h1>
         <div class="daybar__spacer"></div>
-        {% if month %}
+        {% if latest %}
+            <a class="linkbutton"
+               href="{% url 'reports:detail' latest.date %}">Карточка суток</a>
             <a class="button" style="text-decoration:none"
                href="{% url 'analytics:summary' %}?kind=month&on={{ month.start|date:'Y-m-d' }}">
                 Сводка за {{ month.title|lower }}</a>
@@ -21,64 +23,178 @@
             </div>
         </div>
     {% else %}
-        <p class="page__subtitle">
-            Последние загруженные сутки — {{ latest.date|date:"d.m.Y" }}.
-            Всего в базе: {{ total }}
-            {{ total|pluralize:"сутки,суток,суток" }}.
-        </p>
 
-        {% with p=latest.production d=latest.delivery %}
-        <div class="tiles">
-            <div class="tile tile--good">
-                <div class="tile__label">Добыча нефти, т</div>
-                <div class="tile__value">{{ p.closed_day|num:1 }}</div>
-                <div class="tile__note {{ p.dev_sg_day|deviation_class }}">
-                    {{ p.dev_sg_day|signed:1 }} к плану СГ</div>
-            </div>
-            <div class="tile {% if p.dev_bp_day >= 0 %}tile--good{% else %}tile--bad{% endif %}">
-                <div class="tile__label">К бизнес-плану, т/сут</div>
-                <div class="tile__value {{ p.dev_bp_day|deviation_class }}">
-                    {{ p.dev_bp_day|signed:1 }}</div>
-                <div class="tile__note">нарастающая {{ p.cumulative_month|num:0 }} т</div>
-            </div>
-            <div class="tile tile--bad">
-                <div class="tile__label">Потери добычи, т/сут<span class="tile__mark">расч.</span></div>
-                <div class="tile__value">{{ latest.total_losses|num:1 }}</div>
-                <div class="tile__note">
-                    {{ latest.total_losses|share:p.closed_day }} от добычи</div>
-            </div>
-            <div class="tile">
-                <div class="tile__label">Сдача нефти, т</div>
-                <div class="tile__value">{{ d.fact_day|num:0 }}</div>
-                <div class="tile__note {{ d.dev_day|deviation_class }}">
-                    {{ d.dev_day|signed:0 }} к плану</div>
-            </div>
-            <div class="tile {% if latest.gas_utilization_pct >= 95 %}tile--good{% else %}tile--bad{% endif %}">
-                <div class="tile__label">Утилизация газа</div>
-                <div class="tile__value">{{ latest.gas_utilization_pct|num:2 }} %</div>
-                <div class="tile__note">целевой уровень — не ниже 95 %</div>
-            </div>
-            <div class="tile">
-                <div class="tile__label">Выработка Э/Э, МВт·ч</div>
-                <div class="tile__value">{{ latest.power.total_with_psp|num:1 }}</div>
-                <div class="tile__note {{ latest.power.total_with_psp_delta|deviation_class }}">
-                    {{ latest.power.total_with_psp_delta|signed:2 }} к прошлым суткам</div>
-            </div>
-            <div class="tile {% if latest.hse.incidents_count %}tile--bad{% else %}tile--good{% endif %}">
-                <div class="tile__label">Происшествий за сутки</div>
-                <div class="tile__value">{{ latest.hse.incidents_count }}</div>
-                <div class="tile__note">обращений в здравпункт
-                    {{ latest.hse.medical_count }}</div>
-            </div>
-            <div class="tile {% if latest.status == 'needs_review' %}tile--warn{% endif %}">
-                <div class="tile__label">Состояние суток</div>
-                <div class="tile__value" style="font-size:18px;padding-top:6px">
-                    {{ latest.get_status_display }}</div>
-                <div class="tile__note">
-                    <a href="{% url 'reports:detail' latest.date %}">открыть карточку</a>
-                </div>
-            </div>
+    {# --- Доверие к цифрам ------------------------------------------------ #}
+    {% with t=trust %}
+    <div class="coverage {% if not t.clean %}coverage--partial{% endif %}">
+        <div class="coverage__title">
+            {% if t.clean %}
+                Данные за {{ month.title|lower }} полные и проверенные
+            {% else %}
+                К цифрам за {{ month.title|lower }} есть оговорки
+            {% endif %}
         </div>
-        {% endwith %}
+        <div class="gapcard__line">
+            Суток с данными: {{ t.completeness.present }}
+            из {{ t.completeness.expected }}{% if t.completeness.needs_review %} ·
+            <span class="warn">требуют подтверждения:
+                {{ t.completeness.needs_review }}</span>{% endif %}{% if t.cross %} ·
+            <a href="{% url 'analytics:quality' %}?kind=month&on={{ month.start|date:'Y-m-d' }}">межсуточных
+                замечаний: {{ t.cross }}</a>{% endif %}{% if t.errors %} ·
+            <span class="bad">ошибок в данных: {{ t.errors }}</span>{% endif %}
+        </div>
+        {% if t.completeness.missing %}
+            <div class="coverage__days">
+                Нет данных за:
+                {% for day in t.completeness.missing %}<code>{{ day|date:"d.m" }}</code>{% if not forloop.last %} {% endif %}{% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    {% endwith %}
+
+    <p class="page__subtitle">
+        Последние сутки — {{ latest.date|date:"d.m.Y" }},
+        {{ latest.temperature|num:0 }} °C, ветер {{ latest.wind|default:"—" }}.
+        Всего в базе {{ total }} {{ total|pluralize:"сутки,суток,суток" }}.
+    </p>
+
+    {# --- Последние сутки ------------------------------------------------- #}
+    {% with p=latest.production d=latest.delivery %}
+    <div class="tiles">
+        <div class="tile tile--good">
+            <div class="tile__label">Добыча нефти, т</div>
+            <div class="tile__value">{{ p.closed_day|num:1 }}</div>
+            <div class="tile__note {{ p.dev_sg_day|deviation_class }}">
+                {{ p.dev_sg_day|signed:1 }} к плану СГ</div>
+        </div>
+        <div class="tile {% if p.dev_bp_day >= 0 %}tile--good{% else %}tile--bad{% endif %}">
+            <div class="tile__label">К бизнес-плану, т/сут</div>
+            <div class="tile__value {{ p.dev_bp_day|deviation_class }}">
+                {{ p.dev_bp_day|signed:1 }}</div>
+            <div class="tile__note">план БП {{ p.plan_bp_day|num:0 }}</div>
+        </div>
+        <div class="tile tile--bad">
+            <div class="tile__label">Потери добычи, т/сут<span class="tile__mark">расч.</span></div>
+            <div class="tile__value">{{ latest.total_losses|num:1 }}</div>
+            <div class="tile__note">
+                {{ latest.total_losses|share:p.closed_day }} от добычи</div>
+        </div>
+        <div class="tile">
+            <div class="tile__label">Сдача нефти, т</div>
+            <div class="tile__value">{{ d.fact_day|num:0 }}</div>
+            <div class="tile__note {{ d.dev_day|deviation_class }}">
+                {{ d.dev_day|signed:0 }} к плану</div>
+        </div>
+        <div class="tile">
+            <div class="tile__label">Нарастающая за месяц, т</div>
+            <div class="tile__value">{{ p.cumulative_month|num:0 }}</div>
+            <div class="tile__note {{ progress.gap|deviation_class }}">
+                {{ progress.gap|signed:0 }} к БП нарастающим</div>
+        </div>
+        <div class="tile">
+            <div class="tile__label">Выработка Э/Э, МВт·ч</div>
+            <div class="tile__value">{{ latest.power.total_with_psp|num:1 }}</div>
+            <div class="tile__note {{ latest.power.total_with_psp_delta|deviation_class }}">
+                {{ latest.power.total_with_psp_delta|signed:2 }} к прошлым суткам</div>
+        </div>
+        <div class="tile {% if latest.hse.incidents_count %}tile--bad{% else %}tile--good{% endif %}">
+            <div class="tile__label">Происшествий за сутки</div>
+            <div class="tile__value">{{ latest.hse.incidents_count }}</div>
+            <div class="tile__note">обращений в здравпункт
+                {{ latest.hse.medical_count }}</div>
+        </div>
+        <div class="tile {% if latest.gas_utilization_pct >= 95 %}tile--good{% else %}tile--bad{% endif %}">
+            <div class="tile__label">Утилизация газа</div>
+            <div class="tile__value">{{ latest.gas_utilization_pct|num:2 }} %</div>
+            <div class="tile__note">целевой уровень — не ниже 95 %</div>
+        </div>
+    </div>
+    {% endwith %}
+
+    {# --- Ход месяца ------------------------------------------------------ #}
+    <div class="columns">
+        <div class="card">
+            <div class="section__head">
+                <h2>Выполнение бизнес-плана</h2>
+                <span class="section__note">нарастающим итогом с начала месяца</span>
+            </div>
+            <div class="chart-box"><canvas id="chart-progress"></canvas></div>
+            <p class="section__note" style="display:block;margin-top:10px">
+                Расхождение линий показывает, куда идёт месяц: если отрыв
+                растёт изо дня в день, это видно задолго до его конца.
+            </p>
+        </div>
+
+        <div class="card">
+            <div class="section__head">
+                <h2>Причины простоя</h2>
+                <span class="section__note">за {{ month.title|lower }}</span>
+            </div>
+            <div class="chart-box"><canvas id="chart-reasons"></canvas></div>
+        </div>
+    </div>
+
+    {# --- Динамика -------------------------------------------------------- #}
+    <div class="card">
+        <div class="section__head">
+            <h2>Добыча за последние 30 суток</h2>
+            <span class="section__note">пропущенные сутки показаны разрывом</span>
+        </div>
+        <div class="chart-box"><canvas id="chart-trend"></canvas></div>
+    </div>
+
+    <div class="card">
+        <div class="section__head">
+            <h2>Потери добычи по составляющим</h2>
+            <span class="section__note">простой, бездействие и внутрисменные</span>
+        </div>
+        <div class="chart-box"><canvas id="chart-losses"></canvas></div>
+    </div>
+
+    {# --- Итог месяца ----------------------------------------------------- #}
+    {% with m=month_summary %}
+    <div class="card">
+        <div class="section__head">
+            <h2>Итог за {{ month.title|lower }}</h2>
+            <span class="section__note">
+                по {{ trust.completeness.present }} суткам
+                из {{ trust.completeness.expected }}</span>
+        </div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Показатель</th><th class="num">За месяц</th>
+                    <th class="num">В среднем за сутки</th></tr></thead>
+                <tbody>
+                    <tr><td>Добыча нефти, т</td>
+                        <td class="num">{{ m.closed|num:0 }}</td>
+                        <td class="num">{{ m.average|num:1 }}</td></tr>
+                    <tr><td>План БП, т</td>
+                        <td class="num">{{ m.plan_bp|num:0 }}</td>
+                        <td class="num muted">—</td></tr>
+                    <tr><td>Отклонение от БП, т</td>
+                        <td class="num {{ m.dev_bp|deviation_class }}">
+                            {{ m.dev_bp|signed:0 }}</td>
+                        <td class="num muted">—</td></tr>
+                    <tr><td>Потери добычи, т</td>
+                        <td class="num">{{ losses.total|num:0 }}</td>
+                        <td class="num muted">
+                            {{ losses.total|share:m.closed }} от добычи</td></tr>
+                    <tr><td>Сдача нефти, т</td>
+                        <td class="num">{{ m.delivered|num:0 }}</td>
+                        <td class="num muted">—</td></tr>
+                    <tr><td>Происшествий</td>
+                        <td class="num">{{ m.incidents|num:0 }}</td>
+                        <td class="num muted">обращений {{ m.medical|num:0 }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endwith %}
+
+    <script src="{% static 'js/chart.umd.min.js' %}"></script>
+    {{ trend|json_script:"data-trend" }}
+    {{ progress|json_script:"data-progress" }}
+    {{ reasons|json_script:"data-reasons" }}
+    <script src="{% static 'js/dashboard.js' %}"></script>
     {% endif %}
 {% endblock %}

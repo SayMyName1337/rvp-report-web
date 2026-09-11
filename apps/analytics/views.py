@@ -13,7 +13,7 @@ from django.views.generic import TemplateView, View
 
 from apps.reports.models import Report
 
-from . import periods, summary
+from . import dashboard, periods, summary
 from .models import CrossCheck
 
 
@@ -26,20 +26,14 @@ def _parse_day(value: str) -> date | None:
 
 
 class DashboardView(LoginRequiredMixin, TemplateView):
-    """Главная страница: последние сутки и ссылка на сводки."""
+    """Дашборд руководства: последние сутки, ход месяца и доверие к данным."""
 
     template_name = "analytics/dashboard.html"
 
     def get_context_data(self, **kwargs) -> dict:
-        """Собрать сведения о последних загруженных сутках."""
+        """Собрать показатели, динамику и оговорки к цифрам."""
         context = super().get_context_data(**kwargs)
-        latest = (Report.objects.select_related("production", "delivery",
-                                                "power", "hse")
-                  .order_by("-date").first())
-        context["latest"] = latest
-        context["total"] = Report.objects.count()
-        if latest is not None:
-            context["month"] = periods.period_of("month", latest.date)
+        context.update(dashboard.build())
         return context
 
 
