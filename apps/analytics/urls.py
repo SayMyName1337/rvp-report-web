@@ -8,4 +8,5 @@ app_name = "analytics"
 
 urlpatterns = [
     path("", views.DashboardView.as_view(), name="dashboard"),
+    path("summary/", views.SummaryView.as_view(), name="summary"),
 ]

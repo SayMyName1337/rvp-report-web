@@ -478,3 +478,83 @@ tr.gap td {
     font-weight: 600;
     color: var(--blue);
 }
+
+/* --- Графики ------------------------------------------------------------- */
+.chart-box { position: relative; height: 300px; }
+
+.chart-box--tall { height: 420px; }
+
+/* --- Переключатель периода ------------------------------------------------ */
+.periods {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 18px;
+}
+
+.periods a {
+    padding: 7px 14px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--canvas);
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.periods a:hover { border-color: var(--blue-light); }
+
+.periods a.is-active {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #fff;
+    font-weight: 600;
+}
+
+.periods form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.periods form input {
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 14px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #FAFBFC;
+}
+
+/* --- Полнота данных ------------------------------------------------------- */
+.coverage {
+    border-left: 4px solid var(--green);
+    background: var(--lime-pale);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+}
+
+.coverage--partial {
+    border-left-color: var(--amber);
+    background: #FCF3DC;
+}
+
+.coverage__title { font-weight: 600; margin-bottom: 4px; }
+
+.coverage__days {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 6px;
+    line-height: 1.7;
+}
+
+.coverage__days code {
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 12px;
+}

@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% load static rvp %}
+
+{% block title %}Сводка — {{ period.title }}{% endblock %}
+
+{% block content %}
+    <div class="daybar">
+        <h1 style="margin:0">Сводка · {{ period.title }}</h1>
+        <div class="daybar__spacer"></div>
+        {% if previous %}
+            <a class="linkbutton"
+               href="?kind={{ period.kind }}&on={{ previous.start|date:'Y-m-d' }}">←
+                предыдущий</a>
+        {% endif %}
+        {% if next %}
+            <a class="linkbutton"
+               href="?kind={{ period.kind }}&on={{ next.start|date:'Y-m-d' }}">следующий
+                →</a>
+        {% endif %}
+    </div>
+
+    <div class="periods">
+        {% for value, label in kinds %}
+            <a href="?kind={{ value }}&on={{ period.start|date:'Y-m-d' }}"
+               class="{% if period.kind == value %}is-active{% endif %}">{{ label }}</a>
+        {% endfor %}
+        <form method="get">
+            <input type="date" name="start" value="{{ period.start|date:'Y-m-d' }}">
+            <input type="date" name="end" value="{{ period.end|date:'Y-m-d' }}">
+            <button class="linkbutton" type="submit" style="cursor:pointer">
+                Свой период</button>
+        </form>
+    </div>
+
+    {# --- Полнота данных ------------------------------------------------- #}
+    {% with c=completeness %}
+    <div class="coverage {% if not c.complete %}coverage--partial{% endif %}">
+        <div class="coverage__title">
+            {% if c.complete %}
+                Данные за период полные: {{ c.present }}
+                {{ c.present|pluralize:"сутки,суток,суток" }} из {{ c.expected }}
+            {% else %}
+                Данные неполные: {{ c.present }} из {{ c.expected }}
+                {{ c.expected|pluralize:"суток,суток,суток" }}
+            {% endif %}
+            {% if c.unfinished %}· период ещё не завершён{% endif %}
+        </div>
+        <div class="gapcard__line">
+            {% if c.complete %}
+                Суммы ниже посчитаны по всем суткам периода.
+            {% else %}
+                Суммы ниже посчитаны не по всему периоду. Сравнивать их
+                с другими периодами напрямую нельзя.
+            {% endif %}
+            {% if c.needs_review %}
+                <span class="warn">Суток с неподтверждёнными показателями:
+                    {{ c.needs_review }}.</span>
+            {% endif %}
+        </div>
+        {% if c.missing %}
+            <div class="coverage__days">
+                Нет данных за:
+                {% for day in c.missing %}<code>{{ day|date:"d.m" }}</code>{% if not forloop.last %} {% endif %}{% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    {% endwith %}
+
+    {# --- Ключевые показатели -------------------------------------------- #}
+    {% with p=production %}
+    <div class="tiles">
+        <div class="tile tile--good">
+            <div class="tile__label">Добыча за период, т</div>
+            <div class="tile__value">{{ p.closed|num:0 }}</div>
+            <div class="tile__note">в среднем {{ p.average|num:1 }} т/сут</div>
+        </div>
+        <div class="tile {% if p.dev_bp >= 0 %}tile--good{% else %}tile--bad{% endif %}">
+            <div class="tile__label">К бизнес-плану, т</div>
+            <div class="tile__value {{ p.dev_bp|deviation_class }}">
+                {{ p.dev_bp|signed:0 }}</div>
+            <div class="tile__note">план БП {{ p.plan_bp|num:0 }}</div>
+        </div>
+        <div class="tile tile--bad">
+            <div class="tile__label">Потери добычи, т<span class="tile__mark">расч.</span></div>
+            <div class="tile__value">{{ losses.total|num:0 }}</div>
+            <div class="tile__note">{{ losses.total|share:p.closed }} от добычи</div>
+        </div>
+        <div class="tile">
+            <div class="tile__label">Сдача нефти, т</div>
+            <div class="tile__value">{{ p.delivered|num:0 }}</div>
+            <div class="tile__note">за период</div>
+        </div>
+        <div class="tile">
+            <div class="tile__label">Закачка ППД, м³</div>
+            <div class="tile__value">{{ injection.fact|num:0 }}</div>
+            <div class="tile__note">режим {{ injection.plan|num:0 }}</div>
+        </div>
+        <div class="tile">
+            <div class="tile__label">Выработка Э/Э, МВт·ч</div>
+            <div class="tile__value">{{ p.power|num:0 }}</div>
+            <div class="tile__note">за период</div>
+        </div>
+        <div class="tile {% if p.incidents %}tile--bad{% else %}tile--good{% endif %}">
+            <div class="tile__label">Происшествий</div>
+            <div class="tile__value">{{ p.incidents|num:0 }}</div>
+            <div class="tile__note">обращений в здравпункт {{ p.medical|num:0 }}</div>
+        </div>
+        <div class="tile tile--warn">
+            <div class="tile__label">Замечаний к данным</div>
+            <div class="tile__value">{{ quality.warnings|num:0 }}</div>
+            <div class="tile__note">ошибок {{ quality.errors|num:0 }}</div>
+        </div>
+    </div>
+    {% endwith %}
+
+    {# --- Сверка нарастающего итога -------------------------------------- #}
+    {% if production.declared %}
+        {% with d=production.declared %}
+        <div class="card">
+            <div class="card__title">Сверка с нарастающим итогом рапорта</div>
+            <p class="section__note" style="display:block">
+                Нарастающий итог считает сам рапорт, сумму по суткам —
+                программа. Расхождение между ними — не ошибка расчёта,
+                а признак того, что в исходных данных что-то поправили
+                задним числом.
+            </p>
+            <p class="formula">в рапорте на {{ d.on|date:"d.m.Y" }}: {{ d.value|num:1 }} т
+сумма по суткам:            {{ production.closed|num:1 }} т
+расхождение:                {{ d.gap|signed:1 }} т</p>
+            {% if d.notable %}
+                <div class="errors">Расхождение существенное — стоит
+                    разобраться, какие сутки менялись.</div>
+            {% else %}
+                <div class="notice">Расхождение в пределах округления.</div>
+            {% endif %}
+        </div>
+        {% endwith %}
+    {% endif %}
+
+    {# --- График добычи --------------------------------------------------- #}
+    <div class="card">
+        <div class="section__head">
+            <h2>Добыча по суткам</h2>
+            <span class="section__note">пропущенные сутки показаны разрывом</span>
+        </div>
+        <div class="chart-box"><canvas id="chart-daily"></canvas></div>
+    </div>
+
+    {# --- Потери ---------------------------------------------------------- #}
+    <div class="card">
+        <div class="section__head">
+            <h2>Потери добычи за период</h2>
+            <span class="section__note">величина расчётная — в рапорте её нет</span>
+        </div>
+        <p class="formula">{% for name, value in losses.parts %}{% if not forloop.first %}
+  + {% else %}    {% endif %}{{ value|num:1 }} ({{ name }}){% endfor %}
+  = {{ losses.total|num:1 }} т</p>
+        {% if losses.groups.count %}
+            <p class="section__note" style="display:block;margin-top:10px">
+                Из них {{ losses.groups.qo|num:1 }} т приходится на
+                {{ losses.groups.count }}
+                {{ losses.groups.count|pluralize:"групповое событие,групповых события,групповых событий" }} —
+                строки рапорта, относящиеся сразу к нескольким скважинам.
+                По конкретным скважинам они не разнесены.
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="columns">
+        <div class="card">
+            <div class="section__head"><h2>Добыча по месторождениям</h2></div>
+            <div class="chart-box chart-box--tall">
+                <canvas id="chart-fields"></canvas></div>
+        </div>
+        <div class="card">
+            <div class="section__head"><h2>Причины простоя</h2></div>
+            <div class="chart-box"><canvas id="chart-reasons"></canvas></div>
+        </div>
+    </div>
+
+    {# --- Скважины -------------------------------------------------------- #}
+    <div class="card">
+        <div class="section__head">
+            <h2>Скважины с наибольшими накопленными потерями</h2>
+            <span class="section__note">чего в суточном рапорте не видно</span>
+        </div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Скважина</th><th>Месторождение</th>
+                    <th class="num">Потери за период, т</th>
+                    <th class="num">Суток в простое</th></tr></thead>
+                <tbody>
+                {% for item in wells %}
+                    <tr>
+                        <td>{{ item.well__number }}</td>
+                        <td class="muted">{{ item.well__field__name }}</td>
+                        <td class="num">{{ item.qo|num:1 }}</td>
+                        <td class="num">{{ item.days }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="4" class="muted">нет данных</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# --- Газ ------------------------------------------------------------- #}
+    <div class="card">
+        <div class="section__head">
+            <h2>Попутный нефтяной газ</h2>
+            <span class="section__note">в тысячах кубометров</span>
+        </div>
+        <p class="section__note" style="display:block;margin:-8px 0 12px">
+            Процент утилизации здесь не показан намеренно: в рапорте он
+            постоянен — факел считается от добычи по нормативу, а не
+            меряется, поэтому среднее за период не несёт сведений.
+        </p>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Показатель</th><th class="num">БП, тыс. м³</th>
+                    <th class="num">Факт, тыс. м³</th><th class="num">±</th></tr></thead>
+                <tbody>
+                {% for item in gas %}
+                    <tr>
+                        <td>{{ item.label }}</td>
+                        <td class="num">{{ item.plan|num:1 }}</td>
+                        <td class="num">{{ item.fact|num:1 }}</td>
+                        <td class="num muted">
+                            {% if item.plan %}{{ item.fact|num:1 }}{% endif %}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# --- Качество данных -------------------------------------------------- #}
+    {% if quality.top %}
+    <div class="card">
+        <div class="section__head">
+            <h2>Замечания к исходным данным</h2>
+            <span class="section__note">где в рапорте ошибаются чаще всего</span>
+        </div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Блок рапорта</th>
+                    <th class="num">Раз за период</th></tr></thead>
+                <tbody>
+                {% for item in quality.top %}
+                    <tr><td>{{ item.where }}</td>
+                        <td class="num">{{ item.count }}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <script src="{% static 'js/chart.umd.min.js' %}"></script>
+    {{ chart_daily|json_script:"data-daily" }}
+    {{ chart_fields|json_script:"data-fields" }}
+    {{ chart_reasons|json_script:"data-reasons" }}
+    <script src="{% static 'js/summary.js' %}"></script>
+{% endblock %}

@@ -32,6 +32,7 @@
 {% if user.is_authenticated %}
 <nav class="nav">
     <a href="{% url 'analytics:dashboard' %}">Дашборд</a>
+    <a href="{% url 'analytics:summary' %}">Сводки</a>
     <a href="{% url 'reports:list' %}">Суточные рапорты</a>
     {% if user.can_upload %}<a href="{% url 'layout:pending' %}">Разметка</a>{% endif %}
     {% if user.is_staff %}<a href="{% url 'admin:index' %}">Управление</a>{% endif %}
