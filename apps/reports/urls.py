@@ -12,6 +12,8 @@ app_name = "reports"
 
 urlpatterns = [
     path("", views.ReportListView.as_view(), name="list"),
+    path("wells/", views.WellListView.as_view(), name="wells"),
+    path("wells/<int:pk>/", views.WellDetailView.as_view(), name="well"),
     path("<day:day>/", views.ReportDetailView.as_view(), name="detail"),
     path("<day:day>/sources/", views.ReportSourcesView.as_view(),
          name="sources"),

@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% load static rvp %}
+
+{% block title %}Скважина {{ well.number }}{% endblock %}
+
+{% block content %}
+    <div class="daybar">
+        <h1 style="margin:0">Скважина {{ well.number }}</h1>
+        {% if after_repair %}
+            <span class="badge badge--warn">остановок после ремонта:
+                {{ after_repair|length }}</span>
+        {% endif %}
+        <div class="daybar__spacer"></div>
+        <a class="linkbutton" href="{% url 'reports:wells' %}">← к скважинам</a>
+    </div>
+
+    <p class="page__subtitle">
+        {{ well.field.name }} · {{ well.get_category_display|lower }}
+        {% if totals.first %}
+            · наблюдается с {{ totals.first|date:"d.m.Y" }}
+            по {{ totals.last|date:"d.m.Y" }}
+        {% endif %}
+    </p>
+
+    {# --- Итоги ---------------------------------------------------------- #}
+    <div class="tiles">
+        <div class="tile tile--bad">
+            <div class="tile__label">Потери за всё время, т</div>
+            <div class="tile__value">{{ totals.qo|num:1 }}</div>
+            <div class="tile__note">за {{ totals.days }}
+                {{ totals.days|pluralize:"сутки,суток,суток" }} в списках</div>
+        </div>
+        {% for item in totals.by_category %}
+            <div class="tile">
+                <div class="tile__label">{{ item.label }}</div>
+                <div class="tile__value">{{ item.qo|num:1 }}</div>
+                <div class="tile__note">{{ item.days }}
+                    {{ item.days|pluralize:"сутки,суток,суток" }}</div>
+            </div>
+        {% endfor %}
+    </div>
+
+    {# --- Повторные отказы ------------------------------------------------ #}
+    {% if after_repair %}
+    <div class="card">
+        <div class="section__head">
+            <h2>Остановки вскоре после ремонта</h2>
+            <span class="section__note">повод посмотреть, а не вывод</span>
+        </div>
+        <p class="section__note" style="display:block;margin:-8px 0 12px">
+            По одному суточному рапорту такое не увидеть: нужно
+            сопоставить дату остановки с датой последнего ремонта.
+            Ради этого история и накапливается.
+            <br>
+            Связь с ремонтом отсюда <b>не следует</b>: среди этих
+            остановок есть и плановые — вывод на КВД, технологические
+            ограничения. Смотрите причину в последнем столбце.
+        </p>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Остановлена</th><th>Ремонт был</th>
+                    <th class="num">Проработала, суток</th>
+                    <th>Причина</th><th class="num">Потери, т/сут</th></tr></thead>
+                <tbody>
+                {% for item in after_repair %}
+                    <tr>
+                        <td>{{ item.stopped|date:"d.m.Y" }}</td>
+                        <td class="muted">{{ item.repaired|date:"d.m.Y" }}</td>
+                        <td class="num {% if item.days_after < 30 %}bad{% else %}warn{% endif %}">
+                            {{ item.days_after }}</td>
+                        <td>{{ item.reason|default:"—"|truncatechars:48 }}</td>
+                        <td class="num">{{ item.qo|num:1 }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {# --- График потерь ---------------------------------------------------- #}
+    {% if series.labels %}
+    <div class="card">
+        <div class="section__head">
+            <h2>Потери по суткам</h2>
+            <span class="section__note">сутки без столбца — скважина работала</span>
+        </div>
+        <div class="chart-box"><canvas id="chart-well"></canvas></div>
+    </div>
+    {% endif %}
+
+    <div class="columns">
+        {# --- Отрезки --------------------------------------------------- #}
+        <div class="card">
+            <div class="section__head">
+                <h2>Хронология</h2>
+                <span class="section__note">подряд идущие сутки объединены</span>
+            </div>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Состояние</th><th>Когда</th>
+                        <th class="num">Суток</th>
+                        <th class="num">Потери, т</th></tr></thead>
+                    <tbody>
+                    {% for item in spells %}
+                        <tr>
+                            <td>{{ item.label }}</td>
+                            <td class="muted">
+                                {% if item.is_single_day %}
+                                    {{ item.start|date:"d.m.Y" }}
+                                {% else %}
+                                    {{ item.start|date:"d.m" }} —
+                                    {{ item.end|date:"d.m.Y" }}
+                                {% endif %}
+                            </td>
+                            <td class="num">{{ item.days }}</td>
+                            <td class="num">{{ item.qo|num:1 }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="muted">
+                            скважина в списках не встречалась</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {# --- Причины ---------------------------------------------------- #}
+        <div class="card">
+            <div class="section__head">
+                <h2>Причины остановок</h2>
+                <span class="section__note">по накопленным потерям</span>
+            </div>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Причина</th><th class="num">Суток</th>
+                        <th class="num">Потери, т</th></tr></thead>
+                    <tbody>
+                    {% for item in reasons %}
+                        <tr>
+                            <td>{{ item.reason|truncatechars:44 }}</td>
+                            <td class="num">{{ item.days }}</td>
+                            <td class="num">{{ item.qo|num:1 }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="3" class="muted">причины не указаны</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {# --- Ремонты и вывод на режим ---------------------------------------- #}
+    <div class="columns">
+        <div class="card">
+            <div class="card__title">Ремонты, упомянутые в рапортах</div>
+            {% if repairs %}
+                <div class="coverage__days">
+                    {% for day in repairs %}<code>{{ day|date:"d.m.Y" }}</code>{% if not forloop.last %} {% endif %}{% endfor %}
+                </div>
+            {% else %}
+                <p class="muted">Даты ремонтов в рапортах не указаны.</p>
+            {% endif %}
+        </div>
+
+        {% if ramp_ups %}
+        <div class="card">
+            <div class="card__title">Вывод на режим</div>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Сутки</th><th>Вид ГТМ</th>
+                        <th class="num">План, т</th>
+                        <th class="num">Факт, т</th></tr></thead>
+                    <tbody>
+                    {% for item in ramp_ups %}
+                        <tr>
+                            <td>{{ item.report.date|date:"d.m.Y" }}</td>
+                            <td class="muted">{{ item.gtm|truncatechars:26 }}</td>
+                            <td class="num">{{ item.plan_qo|num:1 }}</td>
+                            <td class="num">{{ item.fact_qo|num:1 }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if series.labels %}
+        <script src="{% static 'js/chart.umd.min.js' %}"></script>
+        {{ series|json_script:"data-well" }}
+        <script src="{% static 'js/well.js' %}"></script>
+    {% endif %}
+{% endblock %}

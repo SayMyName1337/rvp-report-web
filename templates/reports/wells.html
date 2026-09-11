@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load rvp %}
+
+{% block title %}Скважины{% endblock %}
+
+{% block content %}
+    <h1>Скважины</h1>
+    <p class="page__subtitle">
+        Суточный рапорт отвечает на вопрос «что стоит сегодня».
+        Здесь другой: какие скважины обходятся дороже всего
+        за всё время наблюдения.
+    </p>
+
+    <div class="periods">
+        <form method="get" style="margin-left:0">
+            <input type="search" name="q" value="{{ search }}"
+                   placeholder="номер скважины">
+            <select name="field">
+                <option value="">все месторождения</option>
+                {% for item in fields %}
+                    <option value="{{ item.pk }}"
+                            {% if field_id == item.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ item.name }}</option>
+                {% endfor %}
+            </select>
+            <button class="linkbutton" type="submit" style="cursor:pointer">
+                Найти</button>
+            {% if search or field_id %}
+                <a class="linkbutton linkbutton--ghost"
+                   href="{% url 'reports:wells' %}">Сбросить</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <div class="card">
+        {% if not rows %}
+            <div class="placeholder">
+                {% if search or field_id %}
+                    По этому отбору скважин не нашлось.
+                {% else %}
+                    Данных о скважинах пока нет.
+                {% endif %}
+            </div>
+        {% else %}
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr>
+                            <th>Скважина</th>
+                            <th>Месторождение</th>
+                            <th class="num">Потери за всё время, т</th>
+                            <th class="num">Суток в списках</th>
+                            <th class="num">Последний раз</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in rows %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'reports:well' row.well_id %}">
+                                    {{ row.well__number }}</a>
+                            </td>
+                            <td class="muted">{{ row.well__field__name }}</td>
+                            <td class="num">{{ row.qo|num:1 }}</td>
+                            <td class="num">{{ row.days }}</td>
+                            <td class="num muted">{{ row.last|date:"d.m.Y" }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

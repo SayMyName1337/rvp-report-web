@@ -9,9 +9,12 @@ from django.db.models import Prefetch, Sum
 from django.shortcuts import get_object_or_404
 from django.views.generic import DetailView, TemplateView
 
-from .models import (DowntimeBreakdownDaily, FieldProductionDaily, GroupEvent,
-                     LoadIssue, ProvenanceEntry, Report, StockDaily,
-                     WellDaily, WellTotals)
+from apps.catalog.models import Field, Well
+
+from . import wells as wells_service
+from .models import (DowntimeBreakdownDaily, FieldProductionDaily,
+                     GroupEvent, LoadIssue, ProvenanceEntry, Report,
+                     StockDaily, WellDaily, WellTotals)
 
 #: Сколько скважин показывать в списках «наибольший вклад».
 TOP_ROWS = 8
@@ -204,4 +207,43 @@ class ReportSourcesView(LoginRequiredMixin, TemplateView):
                              ProvenanceEntry.Kind.COUNT)]
         context["total"] = len(entries)
         context["upload"] = report.uploads.filter(is_current=True).first()
+        return context
+
+
+class WellListView(LoginRequiredMixin, TemplateView):
+    """Скважины, упорядоченные по накопленным потерям.
+
+    Суточный рапорт отвечает на вопрос «что стоит сегодня». Эта
+    страница отвечает на другой: «какие скважины обходятся дороже
+    всего за всё время наблюдения».
+    """
+
+    template_name = "reports/wells.html"
+
+    def get_context_data(self, **kwargs) -> dict:
+        """Собрать перечень скважин с отбором по месторождению и номеру."""
+        context = super().get_context_data(**kwargs)
+        search = self.request.GET.get("q", "").strip()
+        field_id = self.request.GET.get("field", "")
+
+        context["rows"] = wells_service.ranking(
+            field_id=int(field_id) if field_id.isdigit() else None,
+            search=search)
+        context["fields"] = Field.objects.order_by("name")
+        context["search"] = search
+        context["field_id"] = field_id
+        return context
+
+
+class WellDetailView(LoginRequiredMixin, TemplateView):
+    """История одной скважины: отрезки простоя, причины, ремонты."""
+
+    template_name = "reports/well.html"
+
+    def get_context_data(self, **kwargs) -> dict:
+        """Собрать историю скважины."""
+        context = super().get_context_data(**kwargs)
+        well = get_object_or_404(
+            Well.objects.select_related("field"), pk=self.kwargs["pk"])
+        context.update(wells_service.history(well))
         return context

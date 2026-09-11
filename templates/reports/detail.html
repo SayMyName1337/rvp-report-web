@@ -136,7 +136,8 @@
                         <tbody>
                         {% for item in top_wells %}
                             <tr>
-                                <td>{{ item.well.number }}
+                                <td>
+                                    <a href="{% url 'reports:well' item.well.pk %}">{{ item.well.number }}</a>
                                     <span class="muted">{{ item.well.field.short_name|default:item.well.field.name }}</span></td>
                                 <td class="muted">{{ item.reason|truncatechars:32 }}</td>
                                 <td class="num">{{ item.qo|num:1 }}</td>
