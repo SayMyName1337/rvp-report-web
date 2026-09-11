@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Журнал выдач{% endblock %}
+
+{% block content %}
+    <h1>Журнал выдач</h1>
+    <p class="page__subtitle">
+        Презентации и исходные рапорты содержат коммерческую тайну,
+        поэтому отдаются не веб-сервером напрямую, а с проверкой прав
+        и записью сюда. Собрано презентаций: {{ decks }}.
+        {% if not pdf_ready %}
+            <span class="warn">LibreOffice на этом узле не установлен —
+            перевод в PDF недоступен.</span>
+        {% endif %}
+    </p>
+
+    {% if not rows %}
+        <div class="card">
+            <div class="placeholder">Файлы ещё никто не скачивал.</div>
+        </div>
+    {% else %}
+        <div class="card">
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr>
+                            <th>Когда</th>
+                            <th>Кто</th>
+                            <th>Что</th>
+                            <th>Файл</th>
+                            <th>Сутки</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in rows %}
+                        <tr>
+                            <td>{{ row.at|date:"d.m.Y H:i" }}</td>
+                            <td>{{ row.user.short_name|default:row.user.username }}</td>
+                            <td class="{% if row.kind == 'source' %}warn{% endif %}">
+                                {{ row.get_kind_display }}</td>
+                            <td class="muted">{{ row.name }}</td>
+                            <td>
+                                <a href="{% url 'reports:detail' row.report.date %}">
+                                    {{ row.report.date|date:"d.m.Y" }}</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}

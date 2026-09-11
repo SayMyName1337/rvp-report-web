@@ -35,8 +35,9 @@ from rvp_report.excel.reader import ReportReader
 
 from .models import (DeliveryDaily, DieselStockDaily, DowntimeBreakdownDaily,
                      DrillingDaily, FieldProductionDaily, GasDaily,
-                     GroupEvent, HseDaily, InjectionDaily, LayoutGap,
-                     LoadIssue, PiggingDaily, PowerDaily, ProductionDaily,
+                     GroupEvent, HseDaily, IncidentDaily, InjectionDaily,
+                     LayoutGap, LoadIssue, PiggingDaily, PowerDaily,
+                     ProductionDaily,
                      ProvenanceEntry, QualityDaily, RampUpDaily, Report,
                      StockDaily, TankDaily, Upload, WellDaily, WellTotals)
 
@@ -52,6 +53,7 @@ WELLS_COUNT = re.compile(r"(\d+)\s*скважин", re.IGNORECASE)
 #: Перечислены классами, а не именами связей: обращение к отсутствующей
 #: связи «один к одному» возбуждает исключение, а выборка — нет.
 REPLACED = (ProductionDaily, DeliveryDaily, PowerDaily, HseDaily,
+            IncidentDaily,
             FieldProductionDaily, StockDaily, WellDaily, WellTotals,
             GroupEvent, RampUpDaily, DowntimeBreakdownDaily, InjectionDaily,
             TankDaily, QualityDaily, GasDaily, DieselStockDaily,
@@ -245,6 +247,16 @@ def _store_blocks(report: Report, daily: DailyReport) -> None:
         report=report,
         incidents_count=len(daily.hse.incidents),
         medical_count=daily.hse.medical_count)
+
+    # Из происшествия берутся только обезличенные признаки: свободный
+    # текст содержит фамилии и медицинские подробности — см. IncidentDaily.
+    IncidentDaily.objects.bulk_create([
+        IncidentDaily(report=report,
+                      company=str(item.get("dzo", ""))[:200],
+                      field_text=str(item.get("field", ""))[:200],
+                      area=str(item.get("area", ""))[:120],
+                      kind=str(item.get("type", ""))[:120])
+        for item in daily.hse.incidents])
 
 
 def _field(name: str, warnings: list[str]):

@@ -644,11 +644,21 @@ class ReportReader:
             ))
 
     def _read_hse(self) -> None:
-        """Происшествия и обращения в здравпункт."""
+        """Происшествия и обращения в здравпункт.
+
+        Строка считается происшествием только там, где начинается
+        значение ключевого столбца. Иначе объединённая ячейка даёт
+        лишние происшествия: в рапорте за 23.08.2026 комментарий
+        объединён на две строки, и второй из них хватало, чтобы
+        насчитать два происшествия вместо одного.
+        """
         hse = HSE()
         keys = list(L.HSE.columns)
         rows = self.map.rows.get("hse") or L.HSE.reference_rows
+        key_col = self.map.col("hse", L.HSE.key_column)
         for row in range(rows[0], rows[1] + 1):
+            if key_col is not None and self.sheet.span(row, key_col).row != row:
+                continue
             values = {k: _text(self._cell("hse", k, row)) for k in keys}
             if any(v and not _is_empty(v) for v in values.values()):
                 hse.incidents.append(values)

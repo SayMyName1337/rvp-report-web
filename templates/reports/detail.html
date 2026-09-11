@@ -23,6 +23,13 @@
                 →</a>
         {% endif %}
         <a class="linkbutton" href="{% url 'reports:sources' report.date %}">Откуда цифры</a>
+        <a class="button" style="text-decoration:none"
+           href="{% url 'decks:pptx' report.date %}">Скачать презентацию</a>
+        <a class="linkbutton" href="{% url 'decks:pdf' report.date %}">PDF</a>
+        {% if user.can_upload %}
+            <a class="linkbutton linkbutton--ghost"
+               href="{% url 'decks:source' report.date %}">Исходный файл</a>
+        {% endif %}
     </div>
 
     <p class="page__subtitle">

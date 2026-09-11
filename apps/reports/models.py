@@ -303,6 +303,39 @@ class HseDaily(models.Model):
         return f"{self.report.date:%d.%m.%Y}: {self.incidents_count} происш."
 
 
+class IncidentDaily(models.Model):
+    """Происшествие за сутки — без описания.
+
+    Свободный текст происшествия в базу не попадает, и это не
+    перестраховка. В рапорте за 23.08.2026 в графе «Описание
+    происшествия» записано «обратился монтажник» с фамилией, инициалами
+    и медицинскими подробностями — то есть та же специальная категория
+    персональных данных, что и в графе здравпункта. Хранятся только
+    обезличенные признаки: чьё происшествие, где, в какой области
+    и какого типа. Этого достаточно, чтобы считать происшествия
+    за период и видеть их распределение.
+
+    Подробности остаются в исходном рапорте и попадают в презентацию,
+    которая собирается из него напрямую, минуя базу.
+    """
+
+    report = models.ForeignKey(Report, on_delete=models.CASCADE,
+                               related_name="incidents", verbose_name="Сутки")
+    company = models.CharField("ДЗО", max_length=200, blank=True)
+    field_text = models.CharField("Месторождение", max_length=200, blank=True)
+    area = models.CharField("Область события", max_length=120, blank=True)
+    kind = models.CharField("Тип", max_length=120, blank=True)
+
+    class Meta:
+        verbose_name = "происшествие"
+        verbose_name_plural = "происшествия"
+        ordering = ("area", "kind")
+
+    def __str__(self) -> str:
+        """Тип происшествия и место."""
+        return f"{self.kind or 'происшествие'} — {self.field_text or '—'}"
+
+
 # --- Строчные показатели -----------------------------------------------------
 class DailyRow(models.Model):
     """Общая часть таблиц, у которых на сутки приходится много строк."""
