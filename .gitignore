@@ -11,6 +11,7 @@ __pycache__/
 # не попадают ни при каких условиях.
 media/
 raports/
+data_august/
 *.xlsx
 *.pptx
 ~$*
