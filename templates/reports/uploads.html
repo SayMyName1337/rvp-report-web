@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}История загрузок{% endblock %}
+
+{% block content %}
+    <div class="daybar">
+        <h1 style="margin:0">История загрузок</h1>
+        <div class="daybar__spacer"></div>
+        <a class="button" style="text-decoration:none"
+           href="{% url 'reports:upload' %}">Загрузить рапорт</a>
+    </div>
+
+    <p class="page__subtitle">
+        Все загрузки сохраняются, включая заменённые: видно, кто, когда
+        и каким файлом заменил данные за дату.
+    </p>
+
+    <div class="card">
+        {% if not rows %}
+            <div class="placeholder">Рапорты ещё не загружались.</div>
+        {% else %}
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr>
+                            <th>Когда</th>
+                            <th>Файл</th>
+                            <th class="num">Размер</th>
+                            <th>Сутки</th>
+                            <th>Кто</th>
+                            <th>Состояние</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for item in rows %}
+                        <tr>
+                            <td class="muted">{{ item.uploaded_at|date:"d.m.Y H:i" }}</td>
+                            <td>
+                                <a href="{% url 'reports:upload_result' item.pk %}">
+                                    {{ item.original_name|truncatechars:40 }}</a>
+                            </td>
+                            <td class="num muted">{{ item.size|filesizeformat }}</td>
+                            <td>
+                                {% if item.report %}
+                                    <a href="{% url 'reports:detail' item.report.date %}">
+                                        {{ item.report.date|date:"d.m.Y" }}</a>
+                                {% else %}—{% endif %}
+                            </td>
+                            <td class="muted">
+                                {{ item.uploaded_by.short_name|default:item.uploaded_by.username }}</td>
+                            <td class="{% if item.status == 'failed' %}bad{% elif item.is_current %}good{% else %}muted{% endif %}">
+                                {{ item.get_status_display }}{% if item.is_current %} · действующая{% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

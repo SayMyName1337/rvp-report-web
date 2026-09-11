@@ -43,6 +43,27 @@ def check_file(name: str, size: int, head: bytes) -> str:
     return ""
 
 
+def accept(uploaded, user, note: str = "") -> Upload:
+    """Принять файл, пришедший из формы загрузки.
+
+    Args:
+        uploaded: Загруженный файл.
+        user: Кто загружает.
+        note: Пояснение, если рапорт загружают повторно.
+
+    Returns:
+        Созданную запись загрузки с сохранённым файлом.
+    """
+    uploaded.seek(0)
+    upload = Upload(uploaded_by=user, original_name=uploaded.name[:255],
+                    sha256=digest(uploaded), size=uploaded.size,
+                    status=Upload.Status.PARSING, log=note)
+    uploaded.seek(0)
+    upload.file.save(uploaded.name, uploaded, save=False)
+    upload.save()
+    return upload
+
+
 def register_upload(path: Path, user, original_name: str = "") -> Upload:
     """Завести запись загрузки для файла с диска.
 
@@ -89,6 +110,13 @@ def process(upload: Upload) -> Report:
         upload.save(update_fields=["status", "log"])
         raise
 
+    # Замена данных за уже загруженные сутки — обычное дело: рапорт
+    # присылают с исправлениями. Но сказать об этом нужно прямо.
+    replaced = (Upload.objects
+                .filter(report__date=daily.report_date, is_current=True)
+                .exclude(pk=upload.pk)
+                .select_related("uploaded_by").first())
+
     report = store(daily, degraded, upload)
 
     # Сверка с соседними сутками — уже после записи: ей нужна история.
@@ -97,14 +125,37 @@ def process(upload: Upload) -> Report:
 
     recheck(report)
 
-    upload.log = _summary(report, degraded)
+    upload.log = _summary(report, degraded, replaced, upload.log)
     upload.save(update_fields=["log"])
     return report
 
 
-def _summary(report: Report, degraded: list[str]) -> str:
-    """Короткий протокол разбора для страницы загрузки."""
-    lines = [
+def _summary(report: Report, degraded: list, replaced=None,
+             note: str = "") -> str:
+    """Протокол разбора для страницы загрузки.
+
+    Args:
+        report: Записанные сутки.
+        degraded: Показатели, взятые по эталонному адресу.
+        replaced: Прежняя действующая загрузка за эту дату, если она была.
+        note: Пояснение, оставленное при загрузке.
+
+    Returns:
+        Текст протокола.
+    """
+    lines = []
+    if note:
+        lines += [f"Пояснение: {note}", ""]
+    if replaced is not None:
+        who = (replaced.uploaded_by.short_name
+               or replaced.uploaded_by.get_username())
+        lines += [
+            f"Данные за эти сутки заменены. Прежняя загрузка — "
+            f"«{replaced.original_name}» от "
+            f"{replaced.uploaded_at:%d.%m.%Y %H:%M}, {who}; "
+            "она сохранена в истории.",
+            ""]
+    lines += [
         f"Отчётная дата: {report.date:%d.%m.%Y}",
         f"Скважин в списках: {report.wells.count()}",
         f"Месторождений: {report.field_production.count()}",

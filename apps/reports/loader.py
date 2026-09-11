@@ -80,17 +80,24 @@ class LoadError(Exception):
     """Файл не удалось прочитать как суточный рапорт."""
 
 
-def digest(path: str | Path) -> str:
+def digest(source) -> str:
     """Контрольная сумма файла.
 
     Args:
-        path: Путь к файлу.
+        source: Путь к файлу либо уже открытый двоичный поток —
+            например, только что загруженный файл, который ещё
+            не лёг на диск.
 
     Returns:
         SHA-256 в шестнадцатеричном виде.
     """
     sha = hashlib.sha256()
-    with open(path, "rb") as handle:
+    if hasattr(source, "read"):
+        for chunk in iter(lambda: source.read(1 << 20), b""):
+            sha.update(chunk)
+        return sha.hexdigest()
+
+    with open(source, "rb") as handle:
         for chunk in iter(lambda: handle.read(1 << 20), b""):
             sha.update(chunk)
     return sha.hexdigest()

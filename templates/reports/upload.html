@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load static rvp %}
+
+{% block title %}Загрузить рапорт{% endblock %}
+
+{% block content %}
+    <div class="daybar">
+        <h1 style="margin:0">Загрузить суточный рапорт</h1>
+        <div class="daybar__spacer"></div>
+        <a class="linkbutton" href="{% url 'reports:uploads' %}">
+            История загрузок</a>
+    </div>
+
+    <p class="page__subtitle">
+        Выберите книгу Excel с суточным рапортом. Разбор занимает
+        несколько секунд — дождитесь итога, не закрывайте страницу.
+    </p>
+
+    <div class="card" style="max-width:760px">
+        {% if form.non_field_errors %}
+            <div class="errors">
+                {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+            </div>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" id="upload-form">
+            {% csrf_token %}
+
+            <div class="field">
+                <label for="{{ form.file.id_for_label }}">
+                    {{ form.file.label }}</label>
+
+                <div class="dropzone" id="dropzone">
+                    <div class="dropzone__icon">⇪</div>
+                    <div class="dropzone__title" id="dropzone-title">
+                        Перетащите сюда файл рапорта</div>
+                    <div class="dropzone__hint">
+                        или нажмите, чтобы выбрать · {{ form.file.help_text }}
+                    </div>
+                    {{ form.file }}
+                </div>
+
+                {% for error in form.file.errors %}
+                    <div class="errors" style="margin-top:10px">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <div class="field">
+                <label for="{{ form.note.id_for_label }}">
+                    {{ form.note.label }}</label>
+                {{ form.note }}
+                <div class="section__note" style="display:block;margin-top:6px">
+                    {{ form.note.help_text }}
+                </div>
+                {% for error in form.note.errors %}
+                    <div class="errors" style="margin-top:10px">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <button class="button" type="submit" id="submit">Загрузить</button>
+            <span class="muted" id="progress"
+                  style="margin-left:12px;display:none">
+                Разбираю рапорт, это несколько секунд…</span>
+        </form>
+    </div>
+
+    <div class="card" style="max-width:760px">
+        <div class="card__title">Что происходит после загрузки</div>
+        <ol class="steps">
+            <li>Файл проверяется и сохраняется — он понадобится, если
+                разбор потом улучшат.</li>
+            <li>Рапорт разбирается по подписям разделов, а не по номерам
+                ячеек: вставленные строки и столбцы разбор переживает.</li>
+            <li>Данные записываются за отчётную дату из самого файла.
+                Если за эту дату уже есть данные, они <b>заменяются</b>,
+                а прежняя загрузка остаётся в истории.</li>
+            <li>Величины сверяются между собой, а сутки — с соседними.
+                Всё найденное попадает в протокол.</li>
+        </ol>
+    </div>
+
+    {% if recent %}
+    <div class="card" style="max-width:760px">
+        <div class="card__title">Последние загрузки</div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Когда</th><th>Файл</th><th>Сутки</th>
+                    <th>Состояние</th></tr></thead>
+                <tbody>
+                {% for item in recent %}
+                    <tr>
+                        <td class="muted">{{ item.uploaded_at|date:"d.m H:i" }}</td>
+                        <td><a href="{% url 'reports:upload_result' item.pk %}">
+                            {{ item.original_name|truncatechars:34 }}</a></td>
+                        <td>{% if item.report %}{{ item.report.date|date:"d.m.Y" }}{% else %}—{% endif %}</td>
+                        <td class="{% if item.status == 'failed' %}bad{% elif item.is_current %}good{% else %}muted{% endif %}">
+                            {{ item.get_status_display }}{% if item.is_current %} · действующая{% endif %}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <script src="{% static 'js/upload.js' %}"></script>
+{% endblock %}

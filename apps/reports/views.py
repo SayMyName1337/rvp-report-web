@@ -4,17 +4,22 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib import messages
+from django.contrib.auth.mixins import (LoginRequiredMixin,
+                                        UserPassesTestMixin)
 from django.db.models import Prefetch, Sum
-from django.shortcuts import get_object_or_404
-from django.views.generic import DetailView, TemplateView
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
+from django.views.generic import DetailView, FormView, TemplateView
 
 from apps.catalog.models import Field, Well
 
-from . import wells as wells_service
+from . import services, wells as wells_service
+from .forms import UploadForm
+from .loader import LoadError
 from .models import (DowntimeBreakdownDaily, FieldProductionDaily,
                      GroupEvent, LoadIssue, ProvenanceEntry, Report,
-                     StockDaily, WellDaily, WellTotals)
+                     StockDaily, Upload, WellDaily, WellTotals)
 
 #: Сколько скважин показывать в списках «наибольший вклад».
 TOP_ROWS = 8
@@ -246,4 +251,96 @@ class WellDetailView(LoginRequiredMixin, TemplateView):
         well = get_object_or_404(
             Well.objects.select_related("field"), pk=self.kwargs["pk"])
         context.update(wells_service.history(well))
+        return context
+
+
+class UploadView(LoginRequiredMixin, UserPassesTestMixin, FormView):
+    """Загрузка суточного рапорта.
+
+    Разбор выполняется прямо в запросе: он занимает несколько секунд,
+    а загрузка происходит раз в сутки. Фоновая задача ради этого
+    добавила бы опрос состояния и новый способ сломаться — «задача
+    зависла в очереди», — ничего не дав взамен.
+    """
+
+    template_name = "reports/upload.html"
+    form_class = UploadForm
+
+    def test_func(self) -> bool:
+        """Загружать рапорты вправе работник промысла и администратор."""
+        return bool(getattr(self.request.user, "can_upload", False))
+
+    def get_context_data(self, **kwargs) -> dict:
+        """Добавить историю последних загрузок."""
+        context = super().get_context_data(**kwargs)
+        context["recent"] = (Upload.objects.select_related("uploaded_by",
+                                                           "report")
+                             .order_by("-uploaded_at")[:10])
+        return context
+
+    def form_valid(self, form: UploadForm):
+        """Сохранить файл, разобрать его и записать данные.
+
+        Ошибку разбора показываем на той же странице: человек должен
+        видеть, что именно не вышло, а не получать пустой результат.
+        """
+        upload = services.accept(form.cleaned_data["file"], self.request.user,
+                                 form.cleaned_data.get("note", ""))
+        try:
+            report = services.process(upload)
+        except LoadError as error:
+            form.add_error(
+                "file",
+                f"Файл сохранён, но разобрать его как суточный рапорт "
+                f"не удалось: {error}")
+            return self.form_invalid(form)
+
+        messages.success(
+            self.request,
+            f"Рапорт за {report.date:%d.%m.%Y} загружен.")
+        return redirect(reverse("reports:upload_result", args=[upload.pk]))
+
+
+class UploadResultView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """Протокол разбора загруженного файла."""
+
+    template_name = "reports/upload_result.html"
+
+    def test_func(self) -> bool:
+        """Протокол доступен тем же, кто вправе загружать."""
+        return bool(getattr(self.request.user, "can_upload", False))
+
+    def get_context_data(self, **kwargs) -> dict:
+        """Собрать сведения о загрузке и её итогах."""
+        context = super().get_context_data(**kwargs)
+        upload = get_object_or_404(
+            Upload.objects.select_related("uploaded_by", "report"),
+            pk=self.kwargs["pk"])
+        context["upload"] = upload
+        report = upload.report
+        context["report"] = report
+        if report is not None:
+            context["issues"] = (report.issues
+                                 .exclude(level=LoadIssue.Level.INFO)
+                                 .order_by("level", "where"))
+            context["gaps"] = report.gaps.all()
+            context["cross"] = report.cross_checks.all()
+        return context
+
+
+class UploadHistoryView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """История загрузок: кто, когда и каким файлом."""
+
+    template_name = "reports/uploads.html"
+
+    def test_func(self) -> bool:
+        """История доступна тем же, кто вправе загружать."""
+        return bool(getattr(self.request.user, "can_upload", False))
+
+    def get_context_data(self, **kwargs) -> dict:
+        """Собрать последние загрузки."""
+        context = super().get_context_data(**kwargs)
+        context["rows"] = (Upload.objects
+                           .select_related("uploaded_by", "report")
+                           .order_by("-uploaded_at")[:200])
         return context

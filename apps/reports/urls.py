@@ -12,6 +12,10 @@ app_name = "reports"
 
 urlpatterns = [
     path("", views.ReportListView.as_view(), name="list"),
+    path("upload/", views.UploadView.as_view(), name="upload"),
+    path("uploads/", views.UploadHistoryView.as_view(), name="uploads"),
+    path("uploads/<int:pk>/", views.UploadResultView.as_view(),
+         name="upload_result"),
     path("wells/", views.WellListView.as_view(), name="wells"),
     path("wells/<int:pk>/", views.WellDetailView.as_view(), name="well"),
     path("<day:day>/", views.ReportDetailView.as_view(), name="detail"),

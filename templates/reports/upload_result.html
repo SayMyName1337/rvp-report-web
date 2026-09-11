@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load rvp %}
+
+{% block title %}Протокол загрузки{% endblock %}
+
+{% block content %}
+    <div class="daybar">
+        <h1 style="margin:0">Протокол загрузки</h1>
+        {% if upload.status == "loaded" %}
+            <span class="badge badge--ok">загружено</span>
+        {% elif upload.status == "failed" %}
+            <span class="badge badge--bad">не разобрано</span>
+        {% else %}
+            <span class="badge badge--warn">{{ upload.get_status_display }}</span>
+        {% endif %}
+        <div class="daybar__spacer"></div>
+        {% if report %}
+            <a class="button" style="text-decoration:none"
+               href="{% url 'reports:detail' report.date %}">Открыть сутки</a>
+        {% endif %}
+        <a class="linkbutton" href="{% url 'reports:upload' %}">
+            Загрузить ещё</a>
+    </div>
+
+    <p class="page__subtitle">
+        {{ upload.original_name }} ·
+        {{ upload.uploaded_at|date:"d.m.Y H:i" }} ·
+        {{ upload.uploaded_by.short_name|default:upload.uploaded_by.username }}
+    </p>
+
+    <div class="card">
+        <div class="card__title">Что прочитано</div>
+        <pre class="protocol">{{ upload.log|default:"Протокол пуст." }}</pre>
+    </div>
+
+    {% if gaps %}
+    <div class="card">
+        <div class="section__head">
+            <h2>Требуют подтверждения</h2>
+            <span class="section__note">значения взяты по запасному адресу</span>
+        </div>
+        <p class="section__note" style="display:block;margin:-8px 0 12px">
+            Эти показатели не нашлись по подписям. Данные загружены,
+            но их значения не гарантированы: укажите нужные ячейки
+            в разделе «Разметка».
+        </p>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Показатель</th><th>Искали</th>
+                    <th>Взято</th><th></th></tr></thead>
+                <tbody>
+                {% for item in gaps %}
+                    <tr>
+                        <td>{{ item.key }}</td>
+                        <td class="muted">«{{ item.label }}»</td>
+                        <td class="warn">{{ item.reference|default:"—" }}</td>
+                        <td>
+                            <a class="linkbutton"
+                               href="{% url 'layout:confirm' report.date item.key %}">
+                                Указать ячейку</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if cross %}
+    <div class="card">
+        <div class="section__head">
+            <h2>Сверка с соседними сутками</h2>
+            <span class="section__note">повод посмотреть, а не ошибка</span>
+        </div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Правило</th><th>Замечание</th></tr></thead>
+                <tbody>
+                {% for item in cross %}
+                    <tr>
+                        <td class="{% if item.severity == 'warning' %}warn{% else %}muted{% endif %}">
+                            {{ item.get_kind_display }}</td>
+                        <td>{{ item.message }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if issues %}
+    <div class="card">
+        <div class="section__head">
+            <h2>Замечания к исходным данным</h2>
+            <span class="section__note">в рапорте не исправлялись</span>
+        </div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Уровень</th><th>Блок</th>
+                    <th>Замечание</th></tr></thead>
+                <tbody>
+                {% for item in issues %}
+                    <tr>
+                        <td class="{% if item.level == 'error' %}bad{% else %}warn{% endif %}">
+                            {{ item.get_level_display }}</td>
+                        <td>{{ item.where }}</td>
+                        <td>{{ item.message }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}

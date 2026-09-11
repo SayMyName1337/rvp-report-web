@@ -35,6 +35,7 @@
     <a href="{% url 'analytics:summary' %}">Сводки</a>
     <a href="{% url 'reports:list' %}">Суточные рапорты</a>
     <a href="{% url 'reports:wells' %}">Скважины</a>
+    {% if user.can_upload %}<a href="{% url 'reports:upload' %}">Загрузить</a>{% endif %}
     <a href="{% url 'analytics:quality' %}">Качество данных</a>
     {% if user.can_upload %}<a href="{% url 'layout:pending' %}">Разметка</a>{% endif %}
     {% if user.is_staff %}<a href="{% url 'admin:index' %}">Управление</a>{% endif %}

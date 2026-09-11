@@ -4,7 +4,15 @@
 {% block title %}Суточные рапорты{% endblock %}
 
 {% block content %}
-    <h1>Суточные рапорты</h1>
+    <div class="daybar">
+        <h1 style="margin:0">Суточные рапорты</h1>
+        <div class="daybar__spacer"></div>
+        {% if user.can_upload %}
+            <a class="linkbutton" href="{% url 'reports:uploads' %}">История загрузок</a>
+            <a class="button" style="text-decoration:none"
+               href="{% url 'reports:upload' %}">Загрузить рапорт</a>
+        {% endif %}
+    </div>
     <p class="page__subtitle">
         Загружено суток: {{ total }}{% if missing %} ·
         <span class="warn">пропусков в череде дат: {{ missing }}</span>{% endif %}{% if needs_review %} ·
