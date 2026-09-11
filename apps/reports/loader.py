@@ -35,8 +35,8 @@ from rvp_report.excel.reader import ReportReader
 
 from .models import (DeliveryDaily, DieselStockDaily, DowntimeBreakdownDaily,
                      DrillingDaily, FieldProductionDaily, GasDaily,
-                     GroupEvent, HseDaily, InjectionDaily, LoadIssue,
-                     PiggingDaily, PowerDaily, ProductionDaily,
+                     GroupEvent, HseDaily, InjectionDaily, LayoutGap,
+                     LoadIssue, PiggingDaily, PowerDaily, ProductionDaily,
                      ProvenanceEntry, QualityDaily, RampUpDaily, Report,
                      StockDaily, TankDaily, Upload, WellDaily, WellTotals)
 
@@ -55,7 +55,8 @@ REPLACED = (ProductionDaily, DeliveryDaily, PowerDaily, HseDaily,
             FieldProductionDaily, StockDaily, WellDaily, WellTotals,
             GroupEvent, RampUpDaily, DowntimeBreakdownDaily, InjectionDaily,
             TankDaily, QualityDaily, GasDaily, DieselStockDaily,
-            DrillingDaily, PiggingDaily, LoadIssue, ProvenanceEntry)
+            DrillingDaily, PiggingDaily, LoadIssue, ProvenanceEntry,
+            LayoutGap)
 
 #: По какому слову в названии строки баланса газа определяется её вид.
 GAS_KINDS = (
@@ -145,42 +146,48 @@ def missing_names(model, structure) -> list[str]:
 
 
 # --- чтение файла ------------------------------------------------------------
-def read_file(path: str | Path) -> tuple[DailyReport, list[str]]:
-    """Прочитать файл рапорта.
+def read_file(path: str | Path) -> tuple[DailyReport, list]:
+    """Прочитать файл рапорта, применив действующие поправки к разметке.
 
     Args:
         path: Путь к файлу .xlsx.
 
     Returns:
-        Пару «разобранный рапорт, список показателей, взятых по эталону».
+        Пару «разобранный рапорт, пробелы разметки». Пробел означает,
+        что показатель не нашёлся по подписи и взят по эталонному адресу.
 
     Raises:
         LoadError: Если файл не удалось прочитать как суточный рапорт.
     """
+    from apps.layout.models import active_fixes
+
     try:
-        reader = ReportReader(str(path))
+        reader = ReportReader(str(path), fixes=active_fixes())
         daily = reader.read()
     except Exception as error:                     # noqa: BLE001
         raise LoadError(str(error)) from error
     if daily.report_date is None:
         raise LoadError("в файле не найдена отчётная дата")
-    return daily, list(reader.map.degraded)
+    return daily, list(reader.map.gaps)
 
 
 # --- запись в базу -----------------------------------------------------------
 @transaction.atomic
-def store(daily: DailyReport, degraded: list[str],
+def store(daily: DailyReport, gaps: list,
           upload: Upload | None = None) -> Report:
     """Записать разобранный рапорт в базу, заменив данные за эту дату.
 
     Args:
         daily: Разобранный суточный рапорт.
-        degraded: Показатели, взятые по эталонному адресу.
+        gaps: Пробелы разметки — показатели, взятые по эталонному адресу.
+            Пока они не подтверждены оператором, сутки помечаются как
+            требующие проверки.
         upload: Загрузка, из которой пришли данные.
 
     Returns:
         Сутки с записанными данными.
     """
+    degraded = gaps
     report, _created = Report.objects.get_or_create(date=daily.report_date)
     for model in REPLACED:
         model.objects.filter(report=report).delete()
@@ -209,6 +216,7 @@ def store(daily: DailyReport, degraded: list[str],
     _store_pigging(report, daily)
     _store_issues(report, daily, warnings)
     _store_provenance(report, daily)
+    _store_gaps(report, gaps)
 
     if upload is not None:
         Upload.objects.filter(report=report).update(is_current=False)
@@ -508,6 +516,24 @@ def _store_issues(report: Report, daily: DailyReport,
                        where="Справочники", message=message)
              for message in extra]
     LoadIssue.objects.bulk_create(rows)
+
+
+def _store_gaps(report: Report, gaps: list) -> None:
+    """Записать показатели, которые пришлось взять по эталонному адресу.
+
+    Хранятся вместе с сутками: страница подтверждения должна показывать,
+    какие именно сутки затронуты, а не только то, что проблема есть.
+    """
+    rows = {}
+    for gap in gaps:
+        key = getattr(gap, "key", None)
+        if key is None:
+            continue
+        rows[key] = LayoutGap(
+            report=report, key=key, label=gap.label, part=gap.part,
+            message=gap.message[:400], reference=gap.reference or "",
+            block=gap.block or "")
+    LayoutGap.objects.bulk_create(rows.values())
 
 
 def _store_provenance(report: Report, daily: DailyReport) -> None:

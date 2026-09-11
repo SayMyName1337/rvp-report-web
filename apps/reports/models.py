@@ -718,6 +718,37 @@ class PiggingDaily(DailyRow):
         return self.section or self.line or "участок не указан"
 
 
+class LayoutGap(DailyRow):
+    """Показатель, который не нашёлся по подписи и взят по эталону.
+
+    Пока такой показатель не подтверждён оператором, его значение
+    не гарантировано: адрес мог случайно совпасть, а мог и не совпасть.
+    Запись хранится вместе с сутками, чтобы страница подтверждения
+    показывала, какие именно сутки затронуты.
+    """
+
+    report = models.ForeignKey(Report, on_delete=models.CASCADE,
+                               related_name="gaps", verbose_name="Сутки")
+    key = models.CharField("Ключ показателя", max_length=100, db_index=True)
+    label = models.CharField("Искали подпись", max_length=200)
+    part = models.CharField("Что не нашлось", max_length=10, default="row")
+    message = models.CharField("Пояснение", max_length=400)
+    reference = models.CharField("Взят эталонный адрес", max_length=20,
+                                 blank=True)
+    block = models.CharField("Раздел рапорта", max_length=60, blank=True)
+
+    class Meta:
+        verbose_name = "пробел в разметке"
+        verbose_name_plural = "пробелы в разметке"
+        ordering = ("key",)
+        constraints = [models.UniqueConstraint(
+            fields=("report", "key"), name="unique_layout_gap")]
+
+    def __str__(self) -> str:
+        """Показатель и подпись, которую искали."""
+        return f"{self.key}: не найдено «{self.label}»"
+
+
 # --- Служебное ---------------------------------------------------------------
 class LoadIssue(DailyRow):
     """Замечание к качеству исходных данных, найденное при загрузке.

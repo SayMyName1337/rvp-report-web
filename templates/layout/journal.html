@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Журнал поправок к разметке{% endblock %}
+
+{% block content %}
+    <div class="daybar">
+        <h1 style="margin:0">Журнал поправок</h1>
+        <div class="daybar__spacer"></div>
+        <a class="linkbutton" href="{% url 'layout:pending' %}">
+            ← неподтверждённые</a>
+    </div>
+
+    <p class="page__subtitle">
+        Каждая поправка добавляет показателю ещё одно название и не
+        заменяет прежние: рапорты за прошлые месяцы продолжают
+        разбираться по-старому. Отмена возвращает разбор к прежнему
+        поведению.
+    </p>
+
+    {% if not fixes %}
+        <div class="card">
+            <div class="placeholder">Поправок пока нет.</div>
+        </div>
+    {% else %}
+        <div class="card">
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr>
+                            <th>Показатель</th>
+                            <th>Искали</th>
+                            <th>Способ</th>
+                            <th>Указано</th>
+                            <th>Кто и когда</th>
+                            <th>Состояние</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for fix in fixes %}
+                        <tr>
+                            <td>{{ fix.key }}</td>
+                            <td class="muted">{{ fix.label }}</td>
+                            <td class="{% if fix.is_address %}warn{% endif %}">
+                                {{ fix.get_kind_display }}</td>
+                            <td><b>{{ fix.value }}</b>
+                                {% if fix.note %}
+                                    <div class="muted">{{ fix.note }}</div>
+                                {% endif %}</td>
+                            <td class="muted">
+                                {{ fix.created_by.short_name|default:fix.created_by.username }}<br>
+                                {{ fix.created_at|date:"d.m.Y H:i" }}</td>
+                            <td>
+                                {% if fix.is_active %}
+                                    <span class="badge badge--ok">действует</span>
+                                {% else %}
+                                    <span class="badge badge--bad">отменена</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form method="post"
+                                      action="{% url 'layout:toggle' fix.pk %}">
+                                    {% csrf_token %}
+                                    <button class="linkbutton" type="submit"
+                                            style="cursor:pointer">
+                                        {% if fix.is_active %}Отменить{% else %}Вернуть{% endif %}
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <p class="page__subtitle">
+            Поправки применяются при следующей загрузке. Чтобы они
+            подействовали на уже разобранные сутки, загрузите рапорты
+            заново: <span class="formula">manage.py load_reports &lt;каталог&gt;</span>
+        </p>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Разметка рапорта{% endblock %}
+
+{% block content %}
+    <div class="daybar">
+        <h1 style="margin:0">Разметка рапорта</h1>
+        <div class="daybar__spacer"></div>
+        <a class="linkbutton" href="{% url 'layout:journal' %}">
+            Журнал поправок{% if fixes %} · {{ fixes }}{% endif %}</a>
+    </div>
+
+    {% if not groups %}
+        <div class="card">
+            <div class="placeholder">
+                Все показатели найдены по подписям. Ничего подтверждать
+                не нужно.
+            </div>
+        </div>
+    {% else %}
+        <p class="page__subtitle">
+            Эти показатели не нашлись по подписям: их значения взяты
+            по запасному адресу и не гарантированы. Укажите нужную
+            ячейку — программа выведет правило сама и запомнит его.
+        </p>
+
+        {% for item in groups %}
+            <div class="card">
+                <div class="gapcard">
+                    <div class="gapcard__title">{{ item.key }}</div>
+                    <div class="gapcard__line">
+                        Искали: <b>«{{ item.label }}»</b>{% if item.block %}
+                        в разделе <b>{{ item.block }}</b>{% endif %}
+                    </div>
+                    <div class="gapcard__line">{{ item.message }}</div>
+                    <div class="gapcard__line">
+                        Взята запасная ячейка <b>{{ item.reference|default:"—" }}</b>
+                        · затронуто суток: <b>{{ item.days }}</b>
+                        (с {{ item.since|date:"d.m.Y" }}
+                        по {{ item.until|date:"d.m.Y" }})
+                    </div>
+                </div>
+                <a class="button" style="text-decoration:none"
+                   href="{% url 'layout:confirm' item.until item.key %}">
+                    Указать ячейку</a>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endblock %}

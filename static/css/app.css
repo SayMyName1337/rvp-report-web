@@ -389,3 +389,92 @@ tr.gap td {
     h1 { font-size: 21px; }
     .tile__value { font-size: 22px; }
 }
+
+/* --- Просмотрщик куска листа Excel --------------------------------------- */
+.sheet {
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: Consolas, "Courier New", monospace;
+    background: var(--canvas);
+}
+
+.sheet th {
+    background: var(--panel);
+    color: var(--muted);
+    font-weight: 600;
+    text-align: center;
+    padding: 3px 6px;
+    border: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+}
+
+.sheet td {
+    border: 1px solid var(--line);
+    padding: 4px 7px;
+    max-width: 190px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.sheet td.rownum {
+    background: var(--panel);
+    color: var(--muted);
+    text-align: right;
+    font-weight: 600;
+    position: sticky;
+    left: 0;
+}
+
+.sheet td.number { text-align: right; }
+
+.sheet td.pick { cursor: pointer; }
+
+.sheet td.pick:hover { background: var(--lime-pale); outline: 2px solid var(--green); }
+
+.sheet td.is-reference { background: #FCF3DC; outline: 2px solid var(--amber); }
+
+.sheet td.is-chosen { background: var(--lime-pale); outline: 2px solid var(--green-dark); }
+
+.sheet__wrap { overflow: auto; max-height: 460px; border: 1px solid var(--line);
+               border-radius: 6px; }
+
+/* --- Карточка неподтверждённого показателя -------------------------------- */
+.gapcard {
+    border-left: 4px solid var(--amber);
+    background: var(--panel);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+
+.gapcard__title { font-weight: 600; color: var(--blue); margin-bottom: 6px; }
+
+.gapcard__line { font-size: 13px; color: var(--muted); }
+
+.gapcard__line b { color: var(--ink); font-weight: 600; }
+
+.candidate {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    background: var(--canvas);
+}
+
+.candidate__body { flex: 1; }
+
+.candidate__label { font-weight: 600; }
+
+.candidate__why { font-size: 12px; color: var(--muted); }
+
+.candidate__value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--blue);
+}

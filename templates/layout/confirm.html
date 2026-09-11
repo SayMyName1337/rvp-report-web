@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Указать ячейку — {{ gap.key }}{% endblock %}
+
+{% block content %}
+    <div class="daybar">
+        <h1 style="margin:0">{{ gap.key }}</h1>
+        <span class="badge badge--warn">не подтверждён</span>
+        <div class="daybar__spacer"></div>
+        <a class="linkbutton" href="{% url 'layout:pending' %}">← к списку</a>
+    </div>
+
+    <div class="card">
+        <div class="gapcard">
+            <div class="gapcard__line">
+                Искали: <b>«{{ gap.label }}»</b>
+            </div>
+            <div class="gapcard__line">{{ gap.message }}</div>
+            <div class="gapcard__line">
+                Взята запасная ячейка <b>{{ gap.reference|default:"—" }}</b>
+                · затронуто суток: <b>{{ days }}</b>
+            </div>
+            <div class="gapcard__line">
+                Показан рапорт за {{ gap.report.date|date:"d.m.Y" }}{% if upload %},
+                файл {{ upload.original_name }}{% endif %}
+            </div>
+        </div>
+
+        {% if current %}
+            <div class="notice">
+                Для этого показателя уже действуют поправки:
+                {% for fix in current %}«{{ fix.value }}»{% if not forloop.last %},
+                {% endif %}{% endfor %}. Новая добавится к ним, а не заменит их.
+            </div>
+        {% endif %}
+    </div>
+
+    <form method="post" action="{% url 'layout:apply' gap.report.date gap.key %}"
+          id="pickform">
+        {% csrf_token %}
+        <input type="hidden" name="row" id="pick-row">
+        <input type="hidden" name="col" id="pick-col">
+
+        {% if candidates %}
+            <div class="card">
+                <div class="card__title">Похоже, это оно</div>
+                {% for item in candidates %}
+                    <div class="candidate">
+                        <div class="candidate__body">
+                            <div class="candidate__label">{{ item.label }}</div>
+                            <div class="candidate__why">{{ item.why }} ·
+                                ячейка {{ item.address }}</div>
+                        </div>
+                        <div class="candidate__value">{{ item.value }}</div>
+                        <button class="button" type="submit"
+                                onclick="pick({{ item.row }}, {{ item.col }})">
+                            Да, это оно</button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="card">
+            <div class="card__title">Указать ячейку самому</div>
+            <p class="section__note" style="display:block;margin:-8px 0 12px">
+                Ниже — кусок рапорта вокруг запасной ячейки, она обведена
+                жёлтым. Щёлкните по клетке, в которой лежит нужное
+                значение. Выбрать можно только клетку с числом.
+            </p>
+
+            <div class="sheet__wrap">
+                <table class="sheet">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            {% for letter in fragment.columns %}
+                                <th>{{ letter }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in fragment.rows %}
+                        <tr>
+                            <td class="rownum">{{ row.number }}</td>
+                            {% for cell in row.cells %}
+                                <td{% if cell.rowspan > 1 %} rowspan="{{ cell.rowspan }}"{% endif %}{% if cell.colspan > 1 %} colspan="{{ cell.colspan }}"{% endif %}
+                                    class="{% if cell.is_number %}number pick{% endif %}{% if cell.is_reference %} is-reference{% endif %}"
+                                    {% if cell.is_number %}data-row="{{ cell.row }}"
+                                    data-col="{{ cell.col }}"
+                                    title="{{ cell.address }}"{% endif %}>{{ cell.text }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="field" style="margin-top:16px">
+                <label for="id_note">Пояснение — что произошло с рапортом</label>
+                <input type="text" name="note" id="id_note"
+                       placeholder="например: строку «Всего» убрали, сдача осталась в один адрес">
+            </div>
+
+            <button class="button" type="submit" id="apply" disabled>
+                Запомнить выбор</button>
+            <span class="muted" id="chosen" style="margin-left:12px">
+                клетка не выбрана</span>
+        </div>
+    </form>
+
+    <script>
+        function pick(row, col) {
+            document.getElementById('pick-row').value = row;
+            document.getElementById('pick-col').value = col;
+        }
+
+        document.querySelectorAll('.sheet td.pick').forEach(function (cell) {
+            cell.addEventListener('click', function () {
+                document.querySelectorAll('.sheet td.is-chosen')
+                    .forEach(function (other) {
+                        other.classList.remove('is-chosen');
+                    });
+                cell.classList.add('is-chosen');
+                pick(cell.dataset.row, cell.dataset.col);
+                document.getElementById('apply').disabled = false;
+                document.getElementById('chosen').textContent =
+                    'выбрана клетка ' + cell.title + ' = ' + cell.textContent;
+            });
+        });
+    </script>
+{% endblock %}

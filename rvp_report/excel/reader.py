@@ -22,7 +22,7 @@ from ..domain.model import (
 )
 from .resolve import resolve
 from .sheet import Sheet, norm
-from .spec import Resolved, Table
+from .spec import Fix, Resolved, Table
 
 EMPTY = {"", "-", "—", "0", "нет", "н/д", "none"}
 
@@ -102,16 +102,19 @@ class ReportReader:
     Порядок работы: открыть лист, привязать схему, прочитать блоки,
     сверить величины между собой и записать происхождение показателей.
     """
-    def __init__(self, path: str):
+    def __init__(self, path: str, fixes: dict[str, Fix] | None = None):
         """Args:
             path: Путь к файлу суточного рапорта .xlsx.
+            fixes: Поправки к разметке, сделанные оператором. Пробуются
+                после подписей из схемы и потому не могут испортить то,
+                что находилось и без них.
 
         Raises:
             ValueError: Если лист рапорта не удалось опознать.
         """
         self.path = path
         self.sheet = open_sheet(path)
-        self.map: Resolved = resolve(self.sheet)
+        self.map: Resolved = resolve(self.sheet, fixes)
         self.report = DailyReport()
 
     # --- доступ через разрешённую схему --------------------------------------
@@ -187,6 +190,8 @@ class ReportReader:
         """Перенести замечания о разметке в список замечаний рапорта."""
         for message in self.map.degraded:
             self.report.add_issue("warning", "Разметка файла", message)
+        for message in self.map.applied:
+            self.report.add_issue("info", "Разметка файла", message)
         for message in self.map.notes:
             self.report.add_issue("info", "Разметка файла", message)
 

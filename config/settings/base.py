@@ -71,6 +71,7 @@ LOCAL_APPS = [
     "apps.accounts",
     "apps.catalog",
     "apps.reports",
+    "apps.layout",
     "apps.analytics",
     "apps.decks",
 ]

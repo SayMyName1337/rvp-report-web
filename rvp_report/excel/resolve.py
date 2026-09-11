@@ -12,7 +12,8 @@ from openpyxl.utils import (column_index_from_string, coordinate_to_tuple,
 
 from . import layout as L
 from .sheet import Sheet, Span
-from .spec import Block, Col, Cross, Find, Resolved, Scalar, Table
+from .spec import (Block, Col, Cross, Find, Fix, Gap, Resolved, Scalar,
+                   Table)
 
 
 def _ref_cell(reference: str) -> tuple[int, int] | None:
@@ -41,11 +42,15 @@ class Resolver:
     Каждый элемент схемы ищется по подписи; если подпись не найдена,
     берётся эталонный адрес, а сам факт попадает в список ``degraded``.
     """
-    def __init__(self, sheet: Sheet):
+    def __init__(self, sheet: Sheet, fixes: dict[str, Fix] | None = None):
         """Args:
         sheet: Лист суточного рапорта.
+        fixes: Поправки оператора по ключу показателя. Синонимы из них
+            пробуются после основной подписи и её синонимов из схемы,
+            поэтому поправка не может испортить то, что и так находилось.
         """
         self.sheet = sheet
+        self.fixes = dict(fixes or {})
         self.out = Resolved()
         #: На сколько столбцов сдвинута таблица относительно эталона.
         #: Определяется по левым заголовкам и применяется ко всем привязкам,
@@ -93,17 +98,70 @@ class Resolver:
             for part in cols.split(":")]
         return ":".join(shifted)
 
+    # --- поправки оператора --------------------------------------------------
+    def _fix(self, name: str) -> Fix | None:
+        """Поправка для показателя или None, если её нет."""
+        return self.fixes.get(name)
+
+    def _applied(self, name: str, label: str) -> None:
+        """Запомнить, что показатель найден по поправке, а не по схеме."""
+        note = f"«{name}»: найдено по указанию оператора — «{label}»"
+        if note not in self.out.applied:
+            self.out.applied.append(note)
+
+    def _gap(self, key: str, label: str, part: str, reference: str,
+             block: str, message: str) -> None:
+        """Записать, что показатель пришлось взять по эталонному адресу.
+
+        Сведения сохраняются дважды: строкой для человека и разобранной
+        записью, по которой приложение сможет предложить оператору
+        указать нужную ячейку.
+
+        Args:
+            key: Ключ показателя в схеме.
+            label: Подпись, которую искали.
+            part: Что именно не нашлось — ``row`` или ``col``.
+            reference: Эталонный адрес, взятый взамен.
+            block: Раздел рапорта, в котором шёл поиск.
+            message: Пояснение для человека, без упоминания адреса.
+        """
+        self.out.degraded.append(
+            f"{message} — взята ячейка {reference or '—'}")
+        self.out.gaps.append(Gap(key=key, label=label, part=part,
+                                 message=message, reference=reference,
+                                 block=block))
+
     # --- поиск подписи -------------------------------------------------------
     def _find(self, find: Find, rows: tuple[int, int] | None = None,
-              cols: str | tuple[int, int] | None = None) -> Span | None:
-        """Найти подпись, перебирая основной вариант и синонимы."""
+              cols: str | tuple[int, int] | None = None,
+              extra: tuple[str, ...] = (), key: str = "") -> Span | None:
+        """Найти подпись, перебирая основной вариант, синонимы и поправки.
+
+        Если подпись нашлась только по поправке оператора, это сразу
+        отмечается: на странице происхождения должно быть видно, что
+        показатель опознан не по схеме, а по указанию человека.
+
+        Args:
+            find: Описание подписи из схемы.
+            rows: Ограничение по строкам.
+            cols: Ограничение по столбцам.
+            extra: Синонимы из поправок оператора. Пробуются последними:
+                сначала должно отработать то, что задано схемой.
+            key: Ключ показателя — нужен для отметки о поправке.
+
+        Returns:
+            Диапазон найденной подписи или None.
+        """
         window = cols if cols is not None else find.cols
         if isinstance(window, str):
             window = self._shift(window)
-        for label in find.labels:
+        own = list(find.labels)
+        for label in [*own, *extra]:
             span = self.sheet.find(label, mode=find.mode, nth=find.nth,
                                    rows=rows, cols=window)
             if span is not None:
+                if label not in own and key:
+                    self._applied(key, label)
                 return span
         return None
 
@@ -153,19 +211,29 @@ class Resolver:
             name: Ключ показателя в разрешённой схеме.
             item: Описание показателя из схемы.
         """
-        span = self._find(item.find, rows=self._block_rows(item.block))
+        fix = self._fix(name)
+        span = self._find(item.find, rows=self._block_rows(item.block),
+                          extra=fix.row_aliases if fix else (), key=name)
         if span is not None:
             cell = self._value_cell(span, item)
             if cell is not None:
                 self.out.cells[name] = cell
                 return
-            self.out.degraded.append(
-                f"рядом с подписью «{item.find.label}» нет числового значения — "
-                f"взята ячейка {item.reference or '—'}")
+            self._gap(name, item.find.label, "row", item.reference, item.block,
+                      f"рядом с подписью «{item.find.label}» нет числового "
+                      f"значения")
+            self.out.cells[name] = _ref_cell(item.reference)
+            return
+
+        direct = _ref_cell(fix.address) if fix and fix.address else None
+        if direct is not None:
+            self.out.cells[name] = direct
+            self._applied(name, f"ячейка {fix.address}")
+            return
+
         self.out.cells[name] = _ref_cell(item.reference)
-        self.out.degraded.append(
-            f"показатель «{item.find.label}» не найден — "
-            f"взята ячейка {item.reference or '—'}")
+        self._gap(name, item.find.label, "row", item.reference, item.block,
+                  f"показатель «{item.find.label}» не найден")
 
     def _value_cell(self, span: Span, item: Scalar) -> tuple[int, int] | None:
         """Где лежит значение показателя относительно его подписи."""
@@ -196,16 +264,26 @@ class Resolver:
             item: Описание показателя из схемы.
         """
         rows = self._block_rows(item.block)
-        row_span = self._find(item.row, rows=rows)
-        col_span = self._find(item.col, rows=rows)
+        fix = self._fix(name)
+        row_span = self._find(item.row, rows=rows, key=name,
+                              extra=fix.row_aliases if fix else ())
+        col_span = self._find(item.col, rows=rows, key=name,
+                              extra=fix.col_aliases if fix else ())
         if row_span is not None and col_span is not None:
             self.out.cells[name] = (row_span.row, col_span.col)
             return
+
+        direct = _ref_cell(fix.address) if fix and fix.address else None
+        if direct is not None:
+            self.out.cells[name] = direct
+            self._applied(name, f"ячейка {fix.address}")
+            return
+
         self.out.cells[name] = _ref_cell(item.reference)
+        part = "row" if row_span is None else "col"
         missing = item.row.label if row_span is None else item.col.label
-        self.out.degraded.append(
-            f"показатель на пересечении «{missing}» не найден — "
-            f"взята ячейка {item.reference or '—'}")
+        self._gap(name, missing, part, item.reference, item.block,
+                  f"показатель на пересечении «{missing}» не найден")
 
     # --- таблицы -------------------------------------------------------------
     def table(self, name: str, table: Table) -> None:
@@ -230,16 +308,20 @@ class Resolver:
             if col.anchor_col:
                 deferred.append((key, col))
                 continue
-            span = self._resolve_col(col, header_zone, window)
+            fix = self._fix(f"{name}.{key}")
+            span = self._resolve_col(col, header_zone, window,
+                                     extra=fix.col_aliases if fix else (),
+                                     key=f"{name}.{key}")
             if span is None:
                 if col.optional:
                     continue
                 fallback = _ref_col(col.reference)
                 if fallback:
                     columns[key] = fallback
-                    self.out.degraded.append(
-                        f"{name}: столбец «{col.label or key}» не найден — "
-                        f"взят {col.reference} по эталону")
+                    self._gap(f"{name}.{key}", col.label or key, "col",
+                              col.reference, table.block,
+                              f"{name}: столбец «{col.label or key}» "
+                              "не найден")
                 continue
             base = span.last_col if col.pick == "last" else span.col
             columns[key] = base + col.dc
@@ -267,17 +349,28 @@ class Resolver:
             found = self.sheet.leftmost_text_col(rows, window)
             columns[key] = found or _ref_col(col.reference) or 1
             if found is None:
-                self.out.degraded.append(
-                    f"{name}: столбец «{key}» не определён — "
-                    f"взят {col.reference} по эталону")
+                self._gap(f"{name}.{key}", key, "col", col.reference,
+                          table.block, f"{name}: столбец «{key}» не определён")
 
         self.out.columns[name] = columns
         self.out.rows[name] = rows
         self.out.totals[name] = total_row
 
     def _resolve_col(self, col: Col, header_zone: tuple[int, int],
-                     window: str | None) -> Span | None:
-        """Найти столбец по шапке, при необходимости сузив поиск родителем."""
+                     window: str | None, extra: tuple[str, ...] = (),
+                     key: str = "") -> Span | None:
+        """Найти столбец по шапке, при необходимости сузив поиск родителем.
+
+        Args:
+            col: Описание столбца из схемы.
+            header_zone: Строки, занятые шапкой таблицы.
+            window: Окно столбцов, если в блоке две таблицы.
+            extra: Синонимы из поправок оператора, пробуются последними.
+            key: Ключ столбца — нужен для отметки о поправке.
+
+        Returns:
+            Диапазон найденного заголовка или None.
+        """
         scope: str | tuple[int, int] | None = window
         if col.parent:
             parent = self.sheet.find(col.parent, mode="exact",
@@ -285,10 +378,13 @@ class Resolver:
             if parent is None:
                 return None
             scope = (parent.col, parent.last_col)
-        for label in col.labels:
+        own = list(col.labels)
+        for label in [*own, *extra]:
             span = self.sheet.find(label, mode=col.mode, nth=col.nth,
                                    rows=header_zone, cols=scope)
             if span is not None:
+                if label not in own and key:
+                    self._applied(key, label)
                 return span
         return None
 
@@ -343,16 +439,17 @@ TABLES: dict[str, Table] = {
 }
 
 
-def resolve(sheet: Sheet) -> Resolved:
+def resolve(sheet: Sheet, fixes: dict[str, Fix] | None = None) -> Resolved:
     """Привязать схему рапорта к листу.
 
     Args:
         sheet: Лист суточного рапорта.
+        fixes: Поправки оператора по ключу показателя.
 
     Returns:
         Разрешённую схему для чтения данных.
     """
-    return Resolver(sheet).run()
+    return Resolver(sheet, fixes).run()
 
 
 def describe(resolved: Resolved) -> str:
