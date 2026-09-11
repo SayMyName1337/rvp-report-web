@@ -1,0 +1,31 @@
+# Концы строк.
+#
+# Разработка идёт на Windows, а работает приложение в Linux-контейнере.
+# Без этого файла скрипты выгружаются с CRLF, и строка `#!/bin/sh`
+# превращается в `#!/bin/sh\r` — такого истолкователя в контейнере нет,
+# и запуск падает с невнятным «no such file or directory».
+#
+# Поэтому всему, что исполняется или читается внутри контейнера,
+# концы строк задаются явно.
+
+* text=auto eol=lf
+
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+*.conf          text eol=lf
+*.yaml          text eol=lf
+*.yml           text eol=lf
+
+*.py            text eol=lf
+*.html          text eol=lf
+*.css           text eol=lf
+*.js            text eol=lf
+*.md            text eol=lf
+
+# Двоичное не трогать.
+*.png           binary
+*.jpg           binary
+*.webp          binary
+*.xlsx          binary
+*.pptx          binary
+*.pdf           binary
