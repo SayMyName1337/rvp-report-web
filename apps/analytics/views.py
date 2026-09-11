@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import TemplateView
+from django.contrib.auth.mixins import (LoginRequiredMixin,
+                                        UserPassesTestMixin)
+from django.db.models import Count
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
+from django.views.generic import TemplateView, View
 
 from apps.reports.models import Report
 
 from . import periods, summary
+from .models import CrossCheck
 
 
 def _parse_day(value: str) -> date | None:
@@ -38,6 +43,74 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         return context
 
 
+class QualityView(LoginRequiredMixin, TemplateView):
+    """Качество исходных данных: что нашли внутри суток и между сутками."""
+
+    template_name = "analytics/quality.html"
+
+    def get_context_data(self, **kwargs) -> dict:
+        """Собрать замечания обоих видов за выбранный период."""
+        context = super().get_context_data(**kwargs)
+        period = _period_from(self.request, "month")
+        rows = (CrossCheck.objects
+                .filter(report__date__range=(period.start, period.end))
+                .select_related("report")
+                .order_by("-report__date", "kind"))
+
+        context["period"] = period
+        context["kinds"] = periods.KINDS
+        context["previous"] = periods.shift(period, -1)
+        context["next"] = periods.shift(period, 1)
+        context["cross"] = rows
+        context["pending"] = rows.filter(reviewed=False).count()
+        names = dict(CrossCheck.Kind.choices)
+        context["by_kind"] = [
+            {"label": names.get(item["kind"], item["kind"]),
+             "count": item["count"]}
+            for item in rows.values("kind").annotate(count=Count("id"))
+            .order_by("-count")]
+        context["issues"] = summary.quality(period)
+        context["completeness"] = summary.completeness(period)
+        return context
+
+
+class ReviewView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Отметка межсуточного замечания как разобранного."""
+
+    def test_func(self) -> bool:
+        """Разбирать замечания вправе тот, кто отвечает за данные."""
+        return bool(getattr(self.request.user, "can_upload", False))
+
+    def post(self, request, *args, **kwargs):
+        """Переключить отметку «разобрано».
+
+        Замечание при этом не удаляется: история того, что система
+        замечала, остаётся.
+        """
+        check = get_object_or_404(CrossCheck, pk=kwargs["pk"])
+        check.reviewed = not check.reviewed
+        check.save(update_fields=["reviewed"])
+        return redirect(request.META.get("HTTP_REFERER",
+                                         reverse("analytics:quality")))
+
+
+def _period_from(request, default: str) -> periods.Period:
+    """Период из адресной строки с умолчанием на последние сутки."""
+    start = _parse_day(request.GET.get("start", ""))
+    end = _parse_day(request.GET.get("end", ""))
+    if start and end:
+        return periods.custom(start, end)
+
+    kind = request.GET.get("kind", default)
+    if kind not in dict(periods.KINDS):
+        kind = default
+    anchor = _parse_day(request.GET.get("on", ""))
+    if anchor is None:
+        last = Report.objects.order_by("-date").first()
+        anchor = last.date if last else date.today()
+    return periods.period_of(kind, anchor)
+
+
 class SummaryView(LoginRequiredMixin, TemplateView):
     """Сводка за неделю, месяц, квартал, полугодие, год или свой период."""
 
@@ -46,7 +119,7 @@ class SummaryView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs) -> dict:
         """Собрать сводку и данные для графиков."""
         context = super().get_context_data(**kwargs)
-        period = self._period()
+        period = _period_from(self.request, "month")
         data = summary.build(period)
 
         context.update(data)
@@ -60,26 +133,6 @@ class SummaryView(LoginRequiredMixin, TemplateView):
         context["chart_fields"] = self._rows(data["fields"], "field__name")
         context["chart_reasons"] = self._rows(data["reasons"], "reason__name")
         return context
-
-    def _period(self) -> periods.Period:
-        """Период из адресной строки.
-
-        Умолчание — месяц последних загруженных суток: сводка за месяц,
-        в котором ещё нет данных, никому не нужна.
-        """
-        start = _parse_day(self.request.GET.get("start", ""))
-        end = _parse_day(self.request.GET.get("end", ""))
-        if start and end:
-            return periods.custom(start, end)
-
-        kind = self.request.GET.get("kind", "month")
-        if kind not in dict(periods.KINDS):
-            kind = "month"
-        anchor = _parse_day(self.request.GET.get("on", ""))
-        if anchor is None:
-            last = Report.objects.order_by("-date").first()
-            anchor = last.date if last else date.today()
-        return periods.period_of(kind, anchor)
 
     def _daily(self, data: dict) -> dict:
         """Ряд суточной добычи вместе с пропусками — для графика.

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% load rvp %}
+
+{% block title %}Качество данных — {{ period.title }}{% endblock %}
+
+{% block content %}
+    <div class="daybar">
+        <h1 style="margin:0">Качество данных · {{ period.title }}</h1>
+        <div class="daybar__spacer"></div>
+        <a class="linkbutton"
+           href="?kind={{ period.kind }}&on={{ previous.start|date:'Y-m-d' }}">←
+            предыдущий</a>
+        <a class="linkbutton"
+           href="?kind={{ period.kind }}&on={{ next.start|date:'Y-m-d' }}">следующий
+            →</a>
+    </div>
+
+    <div class="periods">
+        {% for value, label in kinds %}
+            <a href="?kind={{ value }}&on={{ period.start|date:'Y-m-d' }}"
+               class="{% if period.kind == value %}is-active{% endif %}">{{ label }}</a>
+        {% endfor %}
+    </div>
+
+    <p class="page__subtitle">
+        Проверки внутри суток ловят противоречия рапорта самому себе.
+        Межсуточные — неправдоподобие, которое видно только рядом
+        с соседними днями: рапорт может сходиться сам с собой и при этом
+        показывать невозможное.
+    </p>
+
+    <div class="tiles">
+        <div class="tile {% if pending %}tile--warn{% else %}tile--good{% endif %}">
+            <div class="tile__label">Межсуточных замечаний</div>
+            <div class="tile__value">{{ pending }}</div>
+            <div class="tile__note">не разобрано из {{ cross|length }}</div>
+        </div>
+        <div class="tile tile--warn">
+            <div class="tile__label">Замечаний при загрузке</div>
+            <div class="tile__value">{{ issues.warnings|num:0 }}</div>
+            <div class="tile__note">ошибок {{ issues.errors|num:0 }}</div>
+        </div>
+        <div class="tile {% if completeness.complete %}tile--good{% else %}tile--warn{% endif %}">
+            <div class="tile__label">Полнота данных</div>
+            <div class="tile__value">{{ completeness.present }}</div>
+            <div class="tile__note">из {{ completeness.expected }} суток периода</div>
+        </div>
+        <div class="tile {% if completeness.needs_review %}tile--warn{% endif %}">
+            <div class="tile__label">Требуют подтверждения</div>
+            <div class="tile__value">{{ completeness.needs_review }}</div>
+            <div class="tile__note">суток с непроверенными показателями</div>
+        </div>
+    </div>
+
+    {# --- Межсуточные замечания ------------------------------------------ #}
+    <div class="card">
+        <div class="section__head">
+            <h2>Сверка с соседними сутками</h2>
+            {% if by_kind %}
+                <span class="section__note">
+                    {% for item in by_kind %}{{ item.label|lower }} —
+                        {{ item.count }}{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                </span>
+            {% endif %}
+        </div>
+
+        {% if not cross %}
+            <div class="placeholder">
+                Ничего необычного по сравнению с соседними сутками
+                за этот период не нашлось.
+            </div>
+        {% else %}
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr>
+                            <th>Сутки</th>
+                            <th>Правило</th>
+                            <th>Замечание</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for item in cross %}
+                        <tr {% if item.reviewed %}class="muted"{% endif %}>
+                            <td>
+                                <a href="{% url 'reports:detail' item.report.date %}">
+                                    {{ item.report.date|date:"d.m.Y" }}</a>
+                            </td>
+                            <td class="{% if item.severity == 'warning' and not item.reviewed %}warn{% else %}muted{% endif %}">
+                                {{ item.get_kind_display }}</td>
+                            <td>{{ item.message }}</td>
+                            <td>
+                                {% if user.can_upload %}
+                                    <form method="post"
+                                          action="{% url 'analytics:reviewed' item.pk %}">
+                                        {% csrf_token %}
+                                        <button class="linkbutton" type="submit"
+                                                style="cursor:pointer">
+                                            {% if item.reviewed %}Вернуть{% else %}Разобрано{% endif %}
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+
+    {# --- Замечания при загрузке ------------------------------------------ #}
+    {% if issues.top %}
+    <div class="card">
+        <div class="section__head">
+            <h2>Замечания при загрузке</h2>
+            <span class="section__note">где в рапорте ошибаются чаще всего</span>
+        </div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Блок рапорта</th>
+                    <th class="num">Раз за период</th></tr></thead>
+                <tbody>
+                {% for item in issues.top %}
+                    <tr><td>{{ item.where }}</td>
+                        <td class="num">{{ item.count }}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if completeness.missing %}
+    <div class="card">
+        <div class="card__title">Сутки без данных</div>
+        <div class="coverage__days">
+            {% for day in completeness.missing %}<code>{{ day|date:"d.m.Y" }}</code>{% if not forloop.last %} {% endif %}{% endfor %}
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}

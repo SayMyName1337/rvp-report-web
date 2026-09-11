@@ -90,6 +90,13 @@ def process(upload: Upload) -> Report:
         raise
 
     report = store(daily, degraded, upload)
+
+    # Сверка с соседними сутками — уже после записи: ей нужна история.
+    # Импорт здесь, а не наверху: раздел сводок сам обращается к рапортам.
+    from apps.analytics.services import recheck
+
+    recheck(report)
+
     upload.log = _summary(report, degraded)
     upload.save(update_fields=["log"])
     return report

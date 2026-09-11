@@ -426,6 +426,31 @@
     </div>
     {% endif %}
 
+    {# --- Сверка с соседними сутками -------------------------------------- #}
+    {% if cross_checks %}
+    <div class="card section">
+        <div class="section__head">
+            <h2>Сверка с соседними сутками</h2>
+            <span class="section__note">рапорт непротиворечив сам себе, но
+                рядом с соседними днями выглядит необычно</span>
+        </div>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Правило</th><th>Замечание</th></tr></thead>
+                <tbody>
+                {% for item in cross_checks %}
+                    <tr {% if item.reviewed %}class="muted"{% endif %}>
+                        <td class="{% if item.severity == 'warning' and not item.reviewed %}warn{% else %}muted{% endif %}">
+                            {{ item.get_kind_display }}</td>
+                        <td>{{ item.message }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
     {# --- Замечания ------------------------------------------------------ #}
     {% if issues %}
     <div class="card section">

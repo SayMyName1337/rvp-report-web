@@ -68,6 +68,19 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"  загружен  {path.name} → {report.date:%d.%m.%Y}{note}")
 
+        # Сверка с соседними сутками выполняется после всей загрузки:
+        # при поштучной проверке ранние сутки не видели бы поздних.
+        if loaded:
+            from apps.analytics.services import recheck_range
+
+            days, findings = recheck_range()
+            if findings:
+                self.stdout.write("")
+                self.stdout.write(self.style.WARNING(
+                    f"Сверка с соседними сутками ({days} сут.): "
+                    f"замечаний {findings}. Подробности — "
+                    f"manage.py crosscheck"))
+
         self.stdout.write("")
         summary = f"Загружено: {loaded}"
         if skipped:

@@ -147,6 +147,7 @@ class ReportDetailView(LoginRequiredMixin, DetailView):
                              .order_by("level", "where"))
         context["upload"] = report.uploads.filter(
             is_current=True).select_related("uploaded_by").first()
+        context["cross_checks"] = report.cross_checks.all()
         return context
 
 
