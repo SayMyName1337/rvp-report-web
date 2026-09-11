@@ -1,0 +1,70 @@
+# Проверки на каждое изменение.
+#
+# Разбор настоящих рапортов здесь не гоняется: файлы содержат
+# коммерческую тайну и в репозитории их нет. Такие проверки
+# пропускаются сами — см. tests/conftest.py.
+
+name: Проверки
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  checks:
+    name: Стиль и тесты
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: rvp
+          POSTGRES_USER: rvp
+          POSTGRES_PASSWORD: rvp
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U rvp"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      # Ключ длинный намеренно: check --deploy справедливо
+      # предупреждает о коротких, и это предупреждение должно
+      # оставаться значимым.
+      DJANGO_SECRET_KEY: ci-only-8f3b2c91a7d64e05b8c2f19a6d3e704c5b9a1f8e2d6c
+      DJANGO_CSRF_TRUSTED_ORIGINS: https://example.invalid
+      POSTGRES_DB: rvp
+      POSTGRES_USER: rvp
+      POSTGRES_PASSWORD: rvp
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: 5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Установить зависимости
+        run: pip install -r requirements/dev.txt
+
+      - name: Проверить стиль
+        run: python -m pycodestyle apps config tests rvp_report manage.py
+
+      - name: Проверить настройки
+        run: python manage.py check --deploy --settings=config.settings.prod
+        env:
+          DJANGO_ALLOWED_HOSTS: example.invalid
+
+      - name: Проверить, что миграции не отстали от моделей
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Тесты
+        run: python -m pytest tests -q
