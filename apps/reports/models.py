@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 from apps.catalog.models import (Contractor, DowntimeReason, Field,
                                  InjectionObject, MeteringNode, PowerObject,
@@ -172,8 +173,12 @@ class Upload(models.Model):
         ordering = ("-uploaded_at",)
 
     def __str__(self) -> str:
-        """Имя файла и время загрузки."""
-        return f"{self.original_name} от {self.uploaded_at:%d.%m.%Y %H:%M}"
+        """Имя файла и время загрузки по местному времени.
+
+        Время хранится по Гринвичу; человек читает московское.
+        """
+        when = timezone.localtime(self.uploaded_at)
+        return f"{self.original_name} от {when:%d.%m.%Y %H:%M}"
 
 
 # --- Показатели, единственные на сутки ---------------------------------------

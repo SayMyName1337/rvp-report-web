@@ -254,3 +254,47 @@ def test_review_requires_permission(client) -> None:
         reverse("analytics:reviewed", args=[check.pk])).status_code == 302
     check.refresh_from_db()
     assert check.reviewed is True
+
+
+@pytest.mark.django_db
+def test_review_does_not_redirect_outside(client) -> None:
+    """Отметка не уводит на чужой сайт.
+
+    Возврат делается по заголовку `Referer`, который присылает браузер.
+    Без проверки страница становится переадресатором на любой внешний
+    адрес: достаточно прислать человеку ссылку с подставленным Referer.
+    """
+    _usual()
+    report = make_day(12, in_work=329.0, closed=7950.0)
+    recheck(report)
+    check = CrossCheck.objects.filter(report=report).first()
+
+    groups = ensure_roles()
+    operator = User.objects.create_user(username="citu", password="x" * 14)
+    operator.groups.add(groups[Role.FIELD.value])
+    client.force_login(operator)
+
+    response = client.post(reverse("analytics:reviewed", args=[check.pk]),
+                           HTTP_REFERER="https://example.org/ловушка/")
+
+    assert response.url == reverse("analytics:quality")
+
+
+@pytest.mark.django_db
+def test_review_returns_to_the_page_it_came_from(client) -> None:
+    """Со своей страницы возврат идёт туда же, откуда пришли."""
+    _usual()
+    report = make_day(12, in_work=329.0, closed=7950.0)
+    recheck(report)
+    check = CrossCheck.objects.filter(report=report).first()
+
+    groups = ensure_roles()
+    operator = User.objects.create_user(username="citu", password="x" * 14)
+    operator.groups.add(groups[Role.FIELD.value])
+    client.force_login(operator)
+
+    came_from = reverse("reports:detail", args=[report.date])
+    response = client.post(reverse("analytics:reviewed", args=[check.pk]),
+                           HTTP_REFERER=came_from)
+
+    assert response.url == came_from

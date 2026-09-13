@@ -8,14 +8,10 @@
         <h1 style="margin:0">Сводка · {{ period.title }}</h1>
         <div class="daybar__spacer"></div>
         {% if previous %}
-            <a class="linkbutton"
-               href="?kind={{ period.kind }}&on={{ previous.start|date:'Y-m-d' }}">←
-                предыдущий</a>
+            <a class="linkbutton" href="?{{ previous.query }}">← предыдущий</a>
         {% endif %}
         {% if next %}
-            <a class="linkbutton"
-               href="?kind={{ period.kind }}&on={{ next.start|date:'Y-m-d' }}">следующий
-                →</a>
+            <a class="linkbutton" href="?{{ next.query }}">следующий →</a>
         {% endif %}
     </div>
 
@@ -45,6 +41,14 @@
             {% endif %}
             {% if c.unfinished %}· период ещё не завершён{% endif %}
         </div>
+        {% if period.clamped %}
+            <div class="gapcard__line warn">
+                Запрошенный период длиннее двух лет, поэтому показан
+                с {{ period.start|date:"d.m.Y" }} по {{ period.end|date:"d.m.Y" }}.
+                Похоже на опечатку в годе; если период нужен именно такой,
+                смотрите его по частям.
+            </div>
+        {% endif %}
         <div class="gapcard__line">
             {% if c.complete %}
                 Суммы ниже посчитаны по всем суткам периода.

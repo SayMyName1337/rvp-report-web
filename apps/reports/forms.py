@@ -16,6 +16,7 @@ import zipfile
 from django import forms
 from django.conf import settings
 from django.template.defaultfilters import filesizeformat
+from django.utils import timezone
 
 from .loader import digest
 from .models import Upload
@@ -165,7 +166,8 @@ class UploadForm(forms.Form):
                 .filter(sha256=checksum, status=Upload.Status.LOADED)
                 .select_related("report").order_by("-uploaded_at").first())
         if same is not None and not cleaned.get("note"):
-            when = same.uploaded_at.strftime("%d.%m.%Y в %H:%M")
+            when = timezone.localtime(same.uploaded_at).strftime(
+                "%d.%m.%Y в %H:%M")
             date = (f" за {same.report.date:%d.%m.%Y}"
                     if same.report_id else "")
             self.add_error(

@@ -19,6 +19,13 @@ MONTH_NAMES = ("Январь", "Февраль", "Март", "Апрель", "М
                "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь")
 
 
+#: Предельная длина произвольного периода. Больше двух лет запрашивают
+#: разве что опечаткой в году, а цена такой опечатки высока: полнота
+#: данных перечисляет каждые пропущенные сутки поимённо, и на диапазоне
+#: в двести лет страница вырастает до пары мегабайт.
+MAX_CUSTOM_DAYS = 366 * 2
+
+
 @dataclass(frozen=True)
 class Period:
     """Отрезок календаря, за который считается сводка."""
@@ -26,11 +33,27 @@ class Period:
     kind: str
     start: date
     end: date
+    #: Признак того, что конец периода урезан до :data:`MAX_CUSTOM_DAYS`.
+    #: Страница обязана об этом сказать, а не молча показать другое.
+    clamped: bool = False
 
     @property
     def days(self) -> int:
         """Сколько календарных суток в периоде."""
         return (self.end - self.start).days + 1
+
+    @property
+    def query(self) -> str:
+        """Параметры адреса, восстанавливающие этот период.
+
+        Собираются здесь, а не в шаблоне: у произвольного периода
+        и у календарного они разные, и шаблон, знающий только про
+        ``kind`` и ``on``, незаметно подменял бы свой период месяцем.
+        """
+        if self.kind == "custom":
+            return (f"start={self.start:%Y-%m-%d}"
+                    f"&end={self.end:%Y-%m-%d}")
+        return f"kind={self.kind}&on={self.start:%Y-%m-%d}"
 
     @property
     def title(self) -> str:
@@ -102,6 +125,12 @@ def shift(period: Period, step: int) -> Period:
     Returns:
         Период того же вида, сдвинутый на шаг.
     """
+    if period.kind == "custom":
+        # Произвольный период сдвигается на собственную длину: соседний
+        # отрезок такой же продолжительности. Раньше эта ветка отсутствовала
+        # и страница качества данных падала на любом своём периоде.
+        span = timedelta(days=period.days * step)
+        return custom(period.start + span, period.end + span)
     if period.kind == "week":
         return period_of("week", period.start + timedelta(days=7 * step))
     if step < 0:
@@ -112,13 +141,19 @@ def shift(period: Period, step: int) -> Period:
 def custom(start: date, end: date) -> Period:
     """Произвольный период по двум датам.
 
+    Границы упорядочиваются, а слишком длинный период урезается до
+    :data:`MAX_CUSTOM_DAYS` — с пометкой, чтобы страница об этом сказала.
+
     Args:
         start: Начало периода.
         end: Конец периода.
 
     Returns:
-        Период вида ``custom`` с упорядоченными границами.
+        Период вида ``custom``.
     """
     if end < start:
         start, end = end, start
+    limit = start + timedelta(days=MAX_CUSTOM_DAYS - 1)
+    if end > limit:
+        return Period("custom", start, limit, clamped=True)
     return Period("custom", start, end)

@@ -65,6 +65,46 @@ def test_custom_period_orders_its_bounds() -> None:
                                           date(2026, 8, 31))
 
 
+def test_custom_period_shifts_by_its_own_length() -> None:
+    """Соседний произвольный период — такой же длины.
+
+    Этой ветки не было, и `shift` бросал ValueError на любом
+    произвольном периоде.
+    """
+    period = periods.custom(date(2026, 8, 1), date(2026, 8, 10))
+
+    assert periods.shift(period, -1).start == date(2026, 7, 22)
+    assert periods.shift(period, 1).end == date(2026, 8, 20)
+
+
+def test_absurd_period_is_shortened_and_marked() -> None:
+    """Период длиннее двух лет укорачивается и помечается.
+
+    Полнота данных перечисляет каждые пропущенные сутки поимённо,
+    поэтому диапазон в двести лет превращал страницу в пару мегабайт.
+    """
+    period = periods.custom(date(1900, 1, 1), date(2100, 12, 31))
+
+    assert period.clamped is True
+    assert period.days == periods.MAX_CUSTOM_DAYS
+
+
+def test_usual_period_is_not_shortened() -> None:
+    """Обычный период не трогается и не помечается."""
+    period = periods.custom(date(2026, 1, 1), date(2026, 3, 31))
+
+    assert period.clamped is False
+    assert period.end == date(2026, 3, 31)
+
+
+def test_query_restores_the_period() -> None:
+    """Ссылка «предыдущий» не подменяет произвольный период месяцем."""
+    assert periods.custom(date(2026, 8, 1), date(2026, 8, 10)).query == (
+        "start=2026-08-01&end=2026-08-10")
+    assert periods.period_of("month", date(2026, 8, 5)).query == (
+        "kind=month&on=2026-08-01")
+
+
 # --- полнота данных ----------------------------------------------------------
 def _day(day: int, closed: float = 8000.0, plan: float = 8100.0) -> Report:
     """Сутки августа с минимальным набором показателей."""
@@ -225,3 +265,32 @@ def test_page_requires_login(client) -> None:
     response = client.get(reverse("analytics:summary"))
     assert response.status_code == 302
     assert reverse("accounts:login") in response.url
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("page", ["analytics:summary", "analytics:quality"])
+def test_pages_survive_a_custom_period(client, page: str) -> None:
+    """Обе страницы открываются на произвольном периоде.
+
+    Страница качества данных на нём падала с ошибкой сервера: она
+    просит соседний период, а для произвольного такой ветки не было.
+    """
+    user = User.objects.create_user(username="chief", password="x" * 14)
+    client.force_login(user)
+
+    response = client.get(reverse(page),
+                          {"start": "2026-08-01", "end": "2026-08-31"})
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("page", ["analytics:summary", "analytics:quality"])
+def test_pages_survive_an_absurd_period(client, page: str) -> None:
+    """Период в двести лет не превращает страницу в мегабайты."""
+    user = User.objects.create_user(username="chief", password="x" * 14)
+    client.force_login(user)
+
+    response = client.get(reverse(page),
+                          {"start": "1900-01-01", "end": "2100-12-31"})
+    assert response.status_code == 200
+    assert len(response.content) < 300 * 1024

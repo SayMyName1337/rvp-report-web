@@ -9,6 +9,8 @@ from django.contrib.auth.mixins import (LoginRequiredMixin,
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
+from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import TemplateView, View
 
 from apps.reports.models import Report
@@ -84,8 +86,28 @@ class ReviewView(LoginRequiredMixin, UserPassesTestMixin, View):
         check = get_object_or_404(CrossCheck, pk=kwargs["pk"])
         check.reviewed = not check.reviewed
         check.save(update_fields=["reviewed"])
-        return redirect(request.META.get("HTTP_REFERER",
-                                         reverse("analytics:quality")))
+        return redirect(_back(request, reverse("analytics:quality")))
+
+
+def _back(request, fallback: str) -> str:
+    """Адрес, с которого пришли, если он ведёт на этот же сайт.
+
+    Заголовок ``Referer`` присылает браузер, и доверять ему как адресу
+    перехода нельзя: иначе страница становится переадресатором на любой
+    внешний адрес.
+
+    Args:
+        request: Запрос.
+        fallback: Куда идти, если вернуться некуда.
+
+    Returns:
+        Безопасный адрес перехода.
+    """
+    referer = request.META.get("HTTP_REFERER", "")
+    if url_has_allowed_host_and_scheme(referer, allowed_hosts={request.get_host()},
+                                       require_https=request.is_secure()):
+        return referer
+    return fallback
 
 
 def _period_from(request, default: str) -> periods.Period:
@@ -101,7 +123,7 @@ def _period_from(request, default: str) -> periods.Period:
     anchor = _parse_day(request.GET.get("on", ""))
     if anchor is None:
         last = Report.objects.order_by("-date").first()
-        anchor = last.date if last else date.today()
+        anchor = last.date if last else timezone.localdate()
     return periods.period_of(kind, anchor)
 
 

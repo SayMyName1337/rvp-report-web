@@ -16,6 +16,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from django.db.models import Avg, Count, Q, Sum
+from django.utils import timezone
 
 from apps.reports.models import (DowntimeBreakdownDaily, FieldProductionDaily,
                                  GasDaily, GroupEvent, InjectionDaily,
@@ -42,7 +43,11 @@ def completeness(period: Period, today: date | None = None) -> dict:
         Сколько суток ожидалось, сколько есть, какие пропущены и сколько
         суток требуют подтверждения.
     """
-    today = today or date.today()
+    # Именно localdate, а не date.today(): часы контейнера идут по UTC,
+    # а сутки рапорта — московские. С полуночи до трёх ночи по Москве
+    # date.today() возвращает вчерашнее число, и сводка недосчитывалась
+    # бы суток.
+    today = today or timezone.localdate()
     last = min(period.end, today)
     present = list(Report.objects
                    .filter(date__range=(period.start, period.end))

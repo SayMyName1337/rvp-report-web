@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.accounts.models import Role, User, ensure_roles
 from apps.reports.forms import UploadForm
@@ -147,6 +148,25 @@ def test_duplicate_upload_warns_without_note(operator: User) -> None:
 
     errors = check(content=content)
     assert errors and "уже загружали" in errors[0]
+
+
+@pytest.mark.django_db
+def test_duplicate_warning_names_the_local_time(operator: User) -> None:
+    """Час загрузки называется по московскому времени, а не по Гринвичу.
+
+    Время хранится в UTC. Без перевода сообщение называло час на три
+    раньше, чем было на самом деле, — в системе, которая живёт вокруг
+    совещания в девять утра, путать их нельзя.
+    """
+    content = valid_zip()
+    upload = Upload.objects.create(
+        uploaded_by=operator, original_name="рапорт.xlsx", size=len(content),
+        sha256=hashlib.sha256(content).hexdigest(),
+        status=Upload.Status.LOADED)
+
+    local = timezone.localtime(upload.uploaded_at)
+    assert local.strftime("в %H:%M") in check(content=content)[0]
+    assert local.strftime("%d.%m.%Y %H:%M") in str(upload)
 
 
 @pytest.mark.django_db

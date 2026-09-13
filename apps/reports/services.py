@@ -9,38 +9,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from django.conf import settings
 from django.core.files import File
+from django.utils import timezone
 
 from .loader import LoadError, digest, read_file, store
 from .models import Report, Upload
 
-#: Первые байты файла .xlsx: это zip-архив.
-ZIP_SIGNATURE = b"PK\x03\x04"
-
-
-def check_file(name: str, size: int, head: bytes) -> str:
-    """Проверить файл до того, как он попадёт в обработку.
-
-    Args:
-        name: Имя файла.
-        size: Размер в байтах.
-        head: Первые байты файла.
-
-    Returns:
-        Текст ошибки или пустую строку, если файл пригоден.
-    """
-    if not name.lower().endswith(".xlsx"):
-        return "Суточный рапорт — это файл .xlsx"
-    limit = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
-    if size > limit:
-        return (f"Файл больше {settings.MAX_UPLOAD_SIZE_MB} МБ. "
-                "Проверьте, что это суточный рапорт")
-    if not size:
-        return "Файл пустой"
-    if not head.startswith(ZIP_SIGNATURE):
-        return "Файл не похож на книгу Excel: не совпадает сигнатура"
-    return ""
+# Проверка загружаемого файла живёт в UploadForm: у формы есть, что
+# сказать пользователю, и там же она проверяется тестами. Второй
+# реализации здесь быть не должно — разойдутся.
 
 
 def accept(uploaded, user, note: str = "") -> Upload:
@@ -149,10 +126,14 @@ def _summary(report: Report, degraded: list, replaced=None,
     if replaced is not None:
         who = (replaced.uploaded_by.short_name
                or replaced.uploaded_by.get_username())
+        # localtime обязателен: время хранится по Гринвичу, а человек
+        # читает московское. Без него протокол показывал час загрузки
+        # на три часа раньше, чем было на самом деле.
+        when = timezone.localtime(replaced.uploaded_at)
         lines += [
             f"Данные за эти сутки заменены. Прежняя загрузка — "
             f"«{replaced.original_name}» от "
-            f"{replaced.uploaded_at:%d.%m.%Y %H:%M}, {who}; "
+            f"{when:%d.%m.%Y %H:%M}, {who}; "
             "она сохранена в истории.",
             ""]
     lines += [

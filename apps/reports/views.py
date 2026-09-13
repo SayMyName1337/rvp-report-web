@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from django.contrib import messages
 from django.contrib.auth.mixins import (LoginRequiredMixin,
                                         UserPassesTestMixin)
-from django.db.models import Prefetch, Sum
+from django.db.models import Count, Prefetch, Q, Sum
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.generic import DetailView, FormView, TemplateView
@@ -38,10 +38,20 @@ class ReportListView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs) -> dict:
         """Собрать перечень суток вперемешку с пропусками."""
         context = super().get_context_data(**kwargs)
+        # Замечания считаются одним запросом, а не по запросу на сутки:
+        # список растёт на 365 строк в год, и запрос на строку
+        # превратился бы в тысячи запросов на одну страницу. По той же
+        # причине `well_totals` берутся заранее — из них считаются
+        # потери в столбце.
         reports = list(
             Report.objects
             .select_related("production", "delivery")
-            .prefetch_related(Prefetch(
+            .annotate(
+                warnings=Count("issues",
+                               filter=Q(issues__level=LoadIssue.Level.WARNING)),
+                errors=Count("issues",
+                             filter=Q(issues__level=LoadIssue.Level.ERROR)))
+            .prefetch_related("well_totals", Prefetch(
                 "uploads", queryset=Report.uploads.rel.related_model.objects
                 .filter(is_current=True).select_related("uploaded_by")))
             .order_by("-date"))
@@ -76,17 +86,10 @@ def _with_gaps(reports: list[Report]) -> list[dict]:
                     "since": report.date + timedelta(days=1),
                     "until": previous - timedelta(days=1)})
         rows.append({"kind": "report", "report": report,
-                     "issues": _issue_counts(report)})
+                     "issues": {"warning": report.warnings,
+                                "error": report.errors}})
         previous = report.date
     return rows
-
-
-def _issue_counts(report: Report) -> dict:
-    """Сколько замечаний каждого уровня найдено за сутки."""
-    counts = {"warning": 0, "error": 0}
-    for issue in report.issues.exclude(level=LoadIssue.Level.INFO):
-        counts[issue.level] = counts.get(issue.level, 0) + 1
-    return counts
 
 
 class ReportDetailView(LoginRequiredMixin, DetailView):

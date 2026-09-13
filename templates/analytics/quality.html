@@ -7,12 +7,8 @@
     <div class="daybar">
         <h1 style="margin:0">Качество данных · {{ period.title }}</h1>
         <div class="daybar__spacer"></div>
-        <a class="linkbutton"
-           href="?kind={{ period.kind }}&on={{ previous.start|date:'Y-m-d' }}">←
-            предыдущий</a>
-        <a class="linkbutton"
-           href="?kind={{ period.kind }}&on={{ next.start|date:'Y-m-d' }}">следующий
-            →</a>
+        <a class="linkbutton" href="?{{ previous.query }}">← предыдущий</a>
+        <a class="linkbutton" href="?{{ next.query }}">следующий →</a>
     </div>
 
     <div class="periods">
