@@ -69,12 +69,16 @@ a { color: var(--blue-mid); }
 .accent-rule { height: 3px; background: var(--green); }
 
 /* --- Навигация ----------------------------------------------------------- */
+/* Меню прокручивается само, а не растягивает страницу. Восемь разделов
+   не умещаются не только на телефоне: на узком ноутбуке они выносили
+   за край всю страницу, и вместе с ней уезжали таблицы. */
 .nav {
     background: var(--canvas);
     border-bottom: 1px solid var(--line);
     padding: 0 28px;
     display: flex;
     gap: 4px;
+    overflow-x: auto;
 }
 
 .nav a {
@@ -83,6 +87,7 @@ a { color: var(--blue-mid); }
     text-decoration: none;
     border-bottom: 3px solid transparent;
     font-size: 14px;
+    white-space: nowrap;
 }
 
 .nav a:hover { background: var(--panel); }
@@ -225,8 +230,6 @@ table.data th {
     white-space: nowrap;
 }
 
-table.data th.right, table.data td.right { text-align: right; }
-
 table.data td {
     padding: 9px 12px;
     border-bottom: 1px solid var(--line);
@@ -236,19 +239,47 @@ table.data tbody tr:nth-child(even) { background: var(--panel); }
 
 table.data tbody tr:hover { background: var(--lime-pale); }
 
-td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Числовые столбцы.
+
+   Выравнивание задаётся заголовку вместе с ячейкой, и обязательно
+   селектором с `table.data`: правило `th.num` легче правила
+   `table.data th` выше и проигрывает ему по весу — подпись оставалась
+   слева, а цифры уходили вправо.
+
+   Ширина в один процент сжимает столбец по содержимому: свободную
+   ширину таблицы забирает столбец с названием. Иначе она делится
+   поровну, числовые столбцы растягиваются на полстраницы,
+   и заголовок отрывается от своих цифр. */
+table.data th.num,
+table.data td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+table.data th.num { width: 1%; }
 
 .good { color: var(--green-dark); }
 .bad { color: var(--red); }
 .muted { color: var(--muted); }
 .warn { color: var(--amber); }
 
-/* Полоса вклада прямо в ячейке таблицы */
+/* Полоса вклада прямо в ячейке таблицы.
+
+   Столбец с полосой не сжимается по содержимому, иначе от полосы
+   останется обрубок. Правило идёт после `table.data th.num`: вес
+   у них одинаковый, решает порядок.
+
+   Полоса растёт от правого края, а не от левого: число в этом
+   столбце прижато вправо, и полоса, растущая слева, у малых значений
+   оказывалась в другом конце ячейки — видно было пятно, а не долю. */
 .barcell { position: relative; }
+
+table.data th.barcell { width: 170px; }
 
 .barcell__fill {
     position: absolute;
-    left: 0; top: 0; bottom: 0;
+    right: 0; top: 0; bottom: 0;
     background: var(--lime-pale);
     z-index: 0;
 }
@@ -340,6 +371,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     border-radius: 999px;
     font-size: 12px;
     font-weight: 600;
+    white-space: nowrap;
 }
 
 .badge--ok { background: var(--lime-pale); color: var(--green-dark); }
@@ -383,7 +415,7 @@ tr.gap td {
     .masthead { padding: 12px 16px; gap: 14px; }
     .masthead__logo { height: 30px; }
     .masthead__user { display: none; }
-    .nav { padding: 0 10px; overflow-x: auto; }
+    .nav { padding: 0 10px; }
     .page { padding: 16px 12px 40px; }
     .card { padding: 16px 14px; }
     h1 { font-size: 21px; }
@@ -612,6 +644,49 @@ tr.gap td {
 .steps li { margin-bottom: 6px; }
 
 .steps b { color: var(--ink); }
+
+/* --- Страницы ошибок ------------------------------------------------------ */
+.failure {
+    max-width: 640px;
+    margin: 40px auto;
+    padding: 44px 40px;
+    text-align: center;
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--blue);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.failure__code {
+    font-size: 64px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--blue);
+    font-variant-numeric: tabular-nums;
+}
+
+.failure__title { font-size: 22px; color: var(--blue); margin: 14px 0 10px; }
+
+.failure__text { color: var(--muted); margin: 0 0 12px; }
+
+.failure__text b { color: var(--ink); }
+
+.failure__path {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 13px;
+    color: var(--muted);
+    word-break: break-all;
+    margin: 0;
+}
+
+.failure__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 22px;
+}
 
 /* --- Протокол разбора ----------------------------------------------------- */
 .protocol {

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Страница не найдена{% endblock %}
+
+{% block content %}
+    <div class="failure">
+        <div class="failure__code">404</div>
+        <h1 class="failure__title">Такой страницы нет</h1>
+        {% if reason %}
+            <p class="failure__text">{{ reason|capfirst }}.</p>
+        {% else %}
+            <p class="failure__text">
+                Возможно, в ссылке опечатка или рапорт за эти сутки
+                ещё не загружен.
+            </p>
+        {% endif %}
+        <p class="failure__path">{{ request.path }}</p>
+        <div class="failure__actions">
+            <a class="button" style="text-decoration:none"
+               href="{% url 'analytics:dashboard' %}">На главную</a>
+            <a class="linkbutton" href="{% url 'reports:list' %}">
+                Суточные рапорты</a>
+        </div>
+    </div>
+{% endblock %}

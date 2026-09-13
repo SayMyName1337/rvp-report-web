@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Доступ закрыт{% endblock %}
+
+{% block content %}
+    <div class="failure">
+        <div class="failure__code">403</div>
+        <h1 class="failure__title">Эта страница не для вашей должности</h1>
+        <p class="failure__text">
+            Права в системе назначены по должности: загрузка рапортов
+            и разметка — работникам промысла, справочники
+            и учётные записи — администратору.
+        </p>
+        {% if user.is_authenticated %}
+            <p class="failure__text">
+                Вы вошли как
+                <b>{{ user.short_name|default:user.username }}</b>{% if user.position %},
+                {{ user.position }}{% endif %}. Если доступ нужен по работе,
+                обратитесь к администратору системы — права меняются
+                без переустановки.
+            </p>
+        {% else %}
+            <p class="failure__text">
+                Возможно, вы просто не вошли в систему.
+            </p>
+        {% endif %}
+        <div class="failure__actions">
+            <a class="button" style="text-decoration:none"
+               href="{% url 'analytics:dashboard' %}">На главную</a>
+            {% if not user.is_authenticated %}
+                <a class="linkbutton" href="{% url 'accounts:login' %}">Войти</a>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

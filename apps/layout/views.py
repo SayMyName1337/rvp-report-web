@@ -11,12 +11,12 @@ from __future__ import annotations
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Count, Max, Min
-from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.generic import TemplateView, View
 
 from apps.reports.models import LayoutGap, Report, Upload
+from config.errors import Missing
 from rvp_report.excel.sheet import Sheet
 
 from . import services
@@ -89,11 +89,11 @@ class ConfirmView(OperatorRequired, TemplateView):
         """Лист рапорта из действующей загрузки.
 
         Raises:
-            Http404: Если файл рапорта не сохранён или недоступен.
+            Missing: Если файл рапорта не сохранён или недоступен.
         """
         upload = report.uploads.filter(is_current=True).first()
         if upload is None or not upload.file:
-            raise Http404("файл рапорта за эти сутки не сохранён")
+            raise Missing("файл рапорта за эти сутки не сохранён")
         return services.open_report(upload.file.path), upload
 
     def _reference(self, gap: LayoutGap) -> tuple[int, int] | None:

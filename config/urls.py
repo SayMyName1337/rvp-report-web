@@ -20,6 +20,10 @@ urlpatterns = [
     path("", include("apps.analytics.urls")),
 ]
 
+#: Своя страница «не найдено». Остальные Django берёт по имени шаблона:
+#: ``400.html``, ``403.html``, ``403_csrf.html``, ``500.html``.
+handler404 = "config.errors.not_found"
+
 admin.site.site_header = "Суточный рапорт — управление"
 admin.site.site_title = "Суточный рапорт"
 admin.site.index_title = "Справочники и пользователи"

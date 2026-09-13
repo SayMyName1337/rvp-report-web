@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Запрос не понят{% endblock %}
+
+{% block content %}
+    <div class="failure">
+        <div class="failure__code">400</div>
+        <h1 class="failure__title">Запрос составлен неверно</h1>
+        <p class="failure__text">
+            Приложение не смогло разобрать обращение. Чаще всего дело
+            в испорченной ссылке — например, если её переслали
+            в сообщении и она разорвалась по строкам.
+        </p>
+        <p class="failure__text">
+            Если ссылка верная, а страница всё равно не открывается,
+            сообщите администратору системы адрес и время обращения.
+        </p>
+        <div class="failure__actions">
+            <a class="button" style="text-decoration:none"
+               href="{% url 'analytics:dashboard' %}">На главную</a>
+        </div>
+    </div>
+{% endblock %}

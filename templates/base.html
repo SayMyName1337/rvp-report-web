@@ -5,11 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Суточный рапорт{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'css/app.css' %}">
-    <link rel="icon" href="{% static 'img/rvp-logo.svg' %}">
+    {# На закладке места с ноготь: знак там читается, подпись — нет. #}
+    <link rel="icon" href="{% static 'img/rvp-blob.svg' %}">
 </head>
 <body>
 <header class="masthead">
-    <img class="masthead__logo" src="{% static 'img/rvp-logo.svg' %}"
+    {# Шапка тёмно-синяя, поэтому логотип с белой подписью. #}
+    <img class="masthead__logo" src="{% static 'img/rvp-logo-white.svg' %}"
          alt="Русвьетпетро">
     <div>
         <div class="masthead__title">Суточный рапорт</div>

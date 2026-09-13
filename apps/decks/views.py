@@ -10,12 +10,13 @@ from pathlib import Path
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.http import FileResponse, Http404
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.generic import TemplateView, View
 
 from apps.reports.models import Report
+from config.errors import Missing
 
 from . import services
 from .models import Deck, Download
@@ -97,7 +98,7 @@ class SourceView(LoginRequiredMixin, UserPassesTestMixin, View):
         report = get_object_or_404(Report, date=kwargs["day"])
         upload = report.uploads.filter(is_current=True).first()
         if upload is None or not upload.file:
-            raise Http404("исходный файл рапорта не сохранён")
+            raise Missing("исходный файл рапорта за эти сутки не сохранён")
 
         services.record_download(report, Download.Kind.SOURCE,
                                  upload.original_name, request.user)

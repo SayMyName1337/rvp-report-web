@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ru">
+<!--
+  Эту страницу отдаёт nginx, когда приложение не отвечает: до Django
+  дело не доходит, поэтому страница отдельная, без шаблонов и статики.
+  Обычно так выглядит перезапуск после обновления — он занимает
+  полминуты.
+-->
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="15">
+    <title>Приложение недоступно</title>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+            font-size: 15px;
+            line-height: 1.5;
+            color: #000;
+            background: #F2F4F7;
+        }
+        .box {
+            max-width: 620px;
+            margin: 40px 16px;
+            padding: 44px 40px;
+            text-align: center;
+            background: #fff;
+            border: 1px solid #DDE3EA;
+            border-top: 4px solid #00326E;
+            border-radius: 8px;
+        }
+        .code {
+            font-size: 64px;
+            font-weight: 600;
+            line-height: 1;
+            color: #00326E;
+        }
+        h1 { font-size: 22px; color: #00326E; margin: 14px 0 10px; }
+        p { color: #6E6E6E; margin: 0 0 12px; }
+        .footer { color: #6E6E6E; font-size: 12px; margin-top: 26px; }
+    </style>
+</head>
+<body>
+<div class="box">
+    <div class="code">502</div>
+    <h1>Приложение сейчас недоступно</h1>
+    <p>
+        Служба не отвечает. Чаще всего это перезапуск после обновления:
+        он занимает меньше минуты.
+    </p>
+    <p>
+        Страница обновится сама каждые пятнадцать секунд. Если через
+        несколько минут ничего не изменится, сообщите администратору
+        системы.
+    </p>
+    <p>
+        Загруженные рапорты и данные при этом не страдают: они лежат
+        в базе, отдельно от приложения.
+    </p>
+    <div class="footer">Коммерческая тайна. ООО «СК Русвьетпетро»</div>
+</div>
+</body>
+</html>
