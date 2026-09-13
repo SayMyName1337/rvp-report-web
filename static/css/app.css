@@ -645,6 +645,121 @@ tr.gap td {
 
 .steps b { color: var(--ink); }
 
+/* --- Инструкция ----------------------------------------------------------- */
+.guide {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 22px;
+    align-items: start;
+}
+
+.guide__toc {
+    position: sticky;
+    top: 16px;
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px 20px;
+    font-size: 14px;
+}
+
+.guide__toc-title {
+    font-weight: 600;
+    color: var(--blue);
+    margin-bottom: 10px;
+}
+
+.guide__toc ol { margin: 0; padding-left: 20px; }
+
+.guide__toc li { margin-bottom: 7px; }
+
+.guide__toc a { color: var(--ink); text-decoration: none; }
+
+.guide__toc a:hover { color: var(--blue-mid); text-decoration: underline; }
+
+.guide__toc a.is-current { color: var(--blue); font-weight: 600; }
+
+.guide__body h2 {
+    font-size: 19px;
+    color: var(--blue);
+    margin: 0 0 12px;
+}
+
+.guide__body h3 {
+    font-size: 15px;
+    color: var(--blue);
+    margin: 22px 0 8px;
+}
+
+.guide__body p { margin: 0 0 12px; }
+
+.guide__body table.data { margin: 4px 0 14px; }
+
+.guide__body code {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 13px;
+}
+
+/* Пометка «кому этот раздел»: подсказка, а не ограничение доступа. */
+.guide__who {
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 8px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--lime-pale);
+    color: var(--green-dark);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.guide__note {
+    border-left: 3px solid var(--green);
+    background: var(--panel);
+    border-radius: 0 6px 6px 0;
+    padding: 10px 14px;
+    font-size: 14px;
+}
+
+@media (max-width: 900px) {
+    .guide { grid-template-columns: 1fr; }
+    .guide__toc { position: static; }
+}
+
+/* Печать инструкции: из неё делают PDF, поэтому с листа убирается всё,
+   что на листе не работает, — меню, кнопки и оглавление со ссылками. */
+@media print {
+    .masthead, .nav, .accent-rule, .footer, .daybar, .guide__toc,
+    .page__subtitle { display: none !important; }
+
+    body { background: #fff; font-size: 11pt; }
+
+    .page { max-width: none; padding: 0; }
+
+    .guide { display: block; }
+
+    .card {
+        box-shadow: none;
+        border: none;
+        padding: 0;
+        margin: 0 0 18px;
+        break-inside: avoid;
+    }
+
+    .guide__body h2 { break-after: avoid; }
+
+    table.data { break-inside: avoid; }
+
+    table.data th { background: #fff; color: #000;
+                    border-bottom: 2px solid #000; }
+
+    a { color: #000; text-decoration: none; }
+}
+
 /* --- Страницы ошибок ------------------------------------------------------ */
 .failure {
     max-width: 640px;

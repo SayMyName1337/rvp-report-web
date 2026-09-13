@@ -41,6 +41,7 @@
     <a href="{% url 'analytics:quality' %}">Качество данных</a>
     {% if user.can_upload %}<a href="{% url 'layout:pending' %}">Разметка</a>{% endif %}
     {% if user.is_staff %}<a href="{% url 'admin:index' %}">Управление</a>{% endif %}
+    <a href="{% url 'guide:index' %}">Инструкция</a>
 </nav>
 {% endif %}
 

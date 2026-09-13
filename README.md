@@ -52,12 +52,6 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-Фоновые задачи выполняет отдельный процесс:
-
-```bash
-python manage.py qcluster
-```
-
 ## Проверки
 
 ```bash
