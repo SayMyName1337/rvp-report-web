@@ -34,21 +34,28 @@ STAMP="$(date +%Y-%m-%d_%H%M)"
 
 mkdir -p "$TARGET"
 
-# Копия пишется во временное имя и переименовывается только после
-# успешного завершения: оборванный дамп не должен выглядеть
-# как готовая копия.
-PARTIAL="$TARGET/db_$STAMP.dump.part"
-trap 'rm -f "$PARTIAL"' EXIT
+# Копии пишутся во временное имя и переименовываются только после
+# успешного завершения: оборванный файл не должен выглядеть как готовая
+# копия. Ключ -T обязателен: без него docker выделяет терминал
+# и портит двоичный поток.
+PARTIAL_DB="$TARGET/db_$STAMP.dump.part"
+PARTIAL_MEDIA="$TARGET/media_$STAMP.tar.gz.part"
+trap 'rm -f "$PARTIAL_DB" "$PARTIAL_MEDIA"' EXIT
 
 echo "[$(date '+%F %T')] Копия базы..."
 $COMPOSE exec -T db pg_dump \
     -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format=custom \
-    > "$PARTIAL"
-mv "$PARTIAL" "$TARGET/db_$STAMP.dump"
+    > "$PARTIAL_DB"
+mv "$PARTIAL_DB" "$TARGET/db_$STAMP.dump"
 
+# Архив принимается потоком, а не пишется в подключённый каталог:
+# приложение внутри контейнера работает не от суперпользователя и в
+# каталог копий, принадлежащий root, писать не вправе. Здесь файл
+# создаёт сам сценарий, и вопрос прав не возникает вовсе.
 echo "[$(date '+%F %T')] Копия файлов..."
-$COMPOSE run --rm --no-deps -v "$TARGET:/backup" web \
-    tar czf "/backup/media_$STAMP.tar.gz" -C /app/media .
+$COMPOSE run --rm --no-deps -T web \
+    tar czf - -C /app/media . > "$PARTIAL_MEDIA"
+mv "$PARTIAL_MEDIA" "$TARGET/media_$STAMP.tar.gz"
 
 echo "[$(date '+%F %T')] Удаляю копии старше $KEEP_DAYS суток..."
 find "$TARGET" -name 'db_*.dump' -mtime "+$KEEP_DAYS" -delete
