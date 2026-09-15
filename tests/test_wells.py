@@ -209,7 +209,8 @@ def test_well_page_states_fact_not_cause(client, well: Well) -> None:
     """
     entry(well, 0, stop=date(2026, 8, 7), repair=date(2026, 6, 29),
           reason="КВД")
-    user = User.objects.create_user(username="chief", password="x" * 14)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
     client.force_login(user)
 
     page = client.get(reverse("reports:well", args=[well.pk])).content.decode()
@@ -229,7 +230,8 @@ def test_well_list_requires_login(client) -> None:
 @pytest.mark.django_db
 def test_unknown_well_gives_404(client) -> None:
     """Несуществующая скважина не даёт пустую страницу."""
-    user = User.objects.create_user(username="chief", password="x" * 14)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
     client.force_login(user)
     assert client.get(
         reverse("reports:well", args=[999999])).status_code == 404

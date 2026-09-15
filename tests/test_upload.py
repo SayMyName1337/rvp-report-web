@@ -54,7 +54,8 @@ def check(name: str = "рапорт.xlsx", content: bytes | None = None,
 def operator(db) -> User:
     """Работник промысла — он и загружает рапорты."""
     groups = ensure_roles()
-    user = User.objects.create_user(username="citu", password="x" * 14)
+    user = User.objects.create_user(username="citu", password="x" * 14,
+                                    must_change_password=False)
     user.groups.add(groups[Role.FIELD.value])
     return user
 
@@ -63,7 +64,8 @@ def operator(db) -> User:
 def viewer(db) -> User:
     """Руководство — рапорты не загружает."""
     groups = ensure_roles()
-    user = User.objects.create_user(username="chief", password="x" * 14)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
     user.groups.add(groups[Role.MANAGEMENT.value])
     return user
 

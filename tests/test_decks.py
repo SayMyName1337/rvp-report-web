@@ -34,7 +34,8 @@ def _find(name: str) -> Path | None:
 def operator(db) -> User:
     """Работник промысла — ему доступен исходный файл."""
     groups = ensure_roles()
-    user = User.objects.create_user(username="citu", password="x" * 14)
+    user = User.objects.create_user(username="citu", password="x" * 14,
+                                    must_change_password=False)
     user.groups.add(groups[Role.FIELD.value])
     return user
 
@@ -43,7 +44,8 @@ def operator(db) -> User:
 def viewer(db) -> User:
     """Руководство — только просмотр и презентации."""
     groups = ensure_roles()
-    user = User.objects.create_user(username="chief", password="x" * 14)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
     user.groups.add(groups[Role.MANAGEMENT.value])
     return user
 

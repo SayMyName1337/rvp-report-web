@@ -135,7 +135,8 @@ def test_candidate_points_at_the_renamed_row(renamed: Path) -> None:
 @pytest.mark.django_db
 def test_aliases_of_one_metric_are_merged() -> None:
     """Несколько поправок на показатель собираются в один набор названий."""
-    user = User.objects.create_user(username="citu", password="x" * 14)
+    user = User.objects.create_user(username="citu", password="x" * 14,
+                                    must_change_password=False)
     for value in ("Первое имя", "Второе имя"):
         LayoutFix.objects.create(key="forecast_total", label="Всего",
                                  kind=LayoutFix.Kind.ROW, value=value,
@@ -147,7 +148,8 @@ def test_aliases_of_one_metric_are_merged() -> None:
 @pytest.mark.django_db
 def test_cancelled_fix_is_not_applied() -> None:
     """Отменённая поправка не должна попадать в разбор."""
-    user = User.objects.create_user(username="citu", password="x" * 14)
+    user = User.objects.create_user(username="citu", password="x" * 14,
+                                    must_change_password=False)
     LayoutFix.objects.create(key="forecast_total", label="Всего",
                              kind=LayoutFix.Kind.ROW, value="Имя",
                              created_by=user, is_active=False)
@@ -165,7 +167,8 @@ def test_gap_marks_report_and_disappears_after_fix(renamed: Path) -> None:
 
     # Одна подпись держала два показателя — так же, как их чинит
     # страница подтверждения: одним указанием сразу оба.
-    user = User.objects.create_user(username="citu", password="x" * 14)
+    user = User.objects.create_user(username="citu", password="x" * 14,
+                                    must_change_password=False)
     for key in ("forecast_total", "forecast_rate_tph"):
         LayoutFix.objects.create(key=key, label="Всего",
                                  kind=LayoutFix.Kind.ROW, value=NEW_LABEL,
@@ -184,7 +187,8 @@ def test_gap_marks_report_and_disappears_after_fix(renamed: Path) -> None:
 def test_editor_is_closed_to_viewers(client) -> None:
     """Руководство не правит разметку: это дело работника промысла."""
     groups = ensure_roles()
-    viewer = User.objects.create_user(username="chief", password="x" * 14)
+    viewer = User.objects.create_user(username="chief", password="x" * 14,
+                                      must_change_password=False)
     viewer.groups.add(groups[Role.MANAGEMENT.value])
     client.force_login(viewer)
     assert client.get(reverse("layout:pending")).status_code == 403
@@ -194,7 +198,8 @@ def test_editor_is_closed_to_viewers(client) -> None:
 def test_editor_is_open_to_field_worker(client) -> None:
     """Работнику промысла редактор доступен."""
     groups = ensure_roles()
-    operator = User.objects.create_user(username="citu", password="x" * 14)
+    operator = User.objects.create_user(username="citu", password="x" * 14,
+                                        must_change_password=False)
     operator.groups.add(groups[Role.FIELD.value])
     client.force_login(operator)
     assert client.get(reverse("layout:pending")).status_code == 200

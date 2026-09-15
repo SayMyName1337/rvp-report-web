@@ -150,7 +150,8 @@ def test_page_shows_caveats_next_to_numbers(client) -> None:
                               metric="closed_day", label="Добыча",
                               message="скачок")
 
-    user = User.objects.create_user(username="chief", password="x" * 14)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
     client.force_login(user)
     page = client.get(reverse("analytics:dashboard")).content.decode()
 
@@ -163,7 +164,8 @@ def test_page_shows_caveats_next_to_numbers(client) -> None:
 @pytest.mark.django_db
 def test_page_works_without_reports(client) -> None:
     """Пустая база даёт страницу с пояснением, а не ошибку."""
-    user = User.objects.create_user(username="chief", password="x" * 14)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
     client.force_login(user)
     response = client.get(reverse("analytics:dashboard"))
     assert response.status_code == 200

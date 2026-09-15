@@ -24,7 +24,8 @@ def viewer(db) -> User:
     """Руководство: смотрит сводки, но ничего не загружает."""
     groups = ensure_roles()
     user = User.objects.create_user(username="chief", password="x" * 14,
-                                    position="Главный инженер")
+                                    position="Главный инженер",
+                                    must_change_password=False)
     user.groups.add(groups[Role.MANAGEMENT.value])
     return user
 

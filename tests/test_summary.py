@@ -250,7 +250,8 @@ def test_page_warns_about_gaps(client) -> None:
     """Страница сводки сообщает о неполноте данных прямым текстом."""
     for day in range(1, 31):
         _day(day)
-    user = User.objects.create_user(username="chief", password="x" * 14)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
     client.force_login(user)
 
     page = client.get(reverse("analytics:summary"),
@@ -275,7 +276,8 @@ def test_pages_survive_a_custom_period(client, page: str) -> None:
     Страница качества данных на нём падала с ошибкой сервера: она
     просит соседний период, а для произвольного такой ветки не было.
     """
-    user = User.objects.create_user(username="chief", password="x" * 14)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
     client.force_login(user)
 
     response = client.get(reverse(page),
@@ -287,7 +289,8 @@ def test_pages_survive_a_custom_period(client, page: str) -> None:
 @pytest.mark.parametrize("page", ["analytics:summary", "analytics:quality"])
 def test_pages_survive_an_absurd_period(client, page: str) -> None:
     """Период в двести лет не превращает страницу в мегабайты."""
-    user = User.objects.create_user(username="chief", password="x" * 14)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
     client.force_login(user)
 
     response = client.get(reverse(page),

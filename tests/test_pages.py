@@ -19,7 +19,8 @@ from .conftest import load, report_files
 @pytest.fixture
 def viewer(client) -> User:
     """Вошедший пользователь."""
-    user = User.objects.create_user(username="chief", password="x" * 14)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
     client.force_login(user)
     return user
 

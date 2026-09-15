@@ -136,7 +136,8 @@ def test_upload_becomes_current(sample: Path) -> None:
     """Действующей считается последняя успешная загрузка за дату."""
     from apps.reports.models import Upload
 
-    user = User.objects.create_user(username="citu", password="x" * 14)
+    user = User.objects.create_user(username="citu", password="x" * 14,
+                                    must_change_password=False)
     daily = load(sample)
 
     first = Upload.objects.create(uploaded_by=user, original_name="а.xlsx",

@@ -20,7 +20,8 @@ from apps.accounts.models import Role, User, ensure_roles
 def viewer(db) -> User:
     """Руководство: инструкция нужна и ему."""
     groups = ensure_roles()
-    user = User.objects.create_user(username="chief", password="x" * 14)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
     user.groups.add(groups[Role.MANAGEMENT.value])
     return user
 

@@ -224,7 +224,8 @@ def test_quality_page_shows_findings(client) -> None:
     report = make_day(12, in_work=329.0, closed=7950.0)
     recheck(report)
 
-    user = User.objects.create_user(username="chief", password="x" * 14)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
     client.force_login(user)
     page = client.get(reverse("analytics:quality"),
                       {"kind": "month", "on": "2026-08-01"}).content.decode()
@@ -241,13 +242,15 @@ def test_review_requires_permission(client) -> None:
     check = CrossCheck.objects.filter(report=report).first()
 
     groups = ensure_roles()
-    viewer = User.objects.create_user(username="chief", password="x" * 14)
+    viewer = User.objects.create_user(username="chief", password="x" * 14,
+                                      must_change_password=False)
     viewer.groups.add(groups[Role.MANAGEMENT.value])
     client.force_login(viewer)
     assert client.post(
         reverse("analytics:reviewed", args=[check.pk])).status_code == 403
 
-    operator = User.objects.create_user(username="citu", password="x" * 14)
+    operator = User.objects.create_user(username="citu", password="x" * 14,
+                                        must_change_password=False)
     operator.groups.add(groups[Role.FIELD.value])
     client.force_login(operator)
     assert client.post(
@@ -270,7 +273,8 @@ def test_review_does_not_redirect_outside(client) -> None:
     check = CrossCheck.objects.filter(report=report).first()
 
     groups = ensure_roles()
-    operator = User.objects.create_user(username="citu", password="x" * 14)
+    operator = User.objects.create_user(username="citu", password="x" * 14,
+                                        must_change_password=False)
     operator.groups.add(groups[Role.FIELD.value])
     client.force_login(operator)
 
@@ -289,7 +293,8 @@ def test_review_returns_to_the_page_it_came_from(client) -> None:
     check = CrossCheck.objects.filter(report=report).first()
 
     groups = ensure_roles()
-    operator = User.objects.create_user(username="citu", password="x" * 14)
+    operator = User.objects.create_user(username="citu", password="x" * 14,
+                                        must_change_password=False)
     operator.groups.add(groups[Role.FIELD.value])
     client.force_login(operator)
 
