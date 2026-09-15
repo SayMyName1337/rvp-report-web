@@ -96,10 +96,17 @@ def process(upload: Upload) -> Report:
 
     report = store(daily, degraded, upload)
 
-    # Сверка с соседними сутками — уже после записи: ей нужна история.
-    # Импорт здесь, а не наверху: раздел сводок сам обращается к рапортам.
+    # Презентация, собранная из прежней загрузки, больше не действует:
+    # её не отдадут, но файл останется в хранилище навсегда. Убираем
+    # сразу, иначе при каждом исправлении рапорта копится мусор.
+    # Импорты здесь, а не наверху: соседние разделы сами обращаются
+    # к рапортам, и наверху получилось бы кольцо.
     from apps.analytics.services import recheck
+    from apps.decks.services import stale_decks
 
+    stale_decks(upload)
+
+    # Сверка с соседними сутками — уже после записи: ей нужна история.
     recheck(report)
 
     upload.log = _summary(report, degraded, replaced, upload.log)

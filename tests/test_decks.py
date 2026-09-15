@@ -14,7 +14,7 @@ from apps.decks import services
 from apps.decks.models import Deck, Download
 from apps.reports.loader import read_file, store
 from apps.reports.models import IncidentDaily, Report, Upload
-from apps.reports.services import register_upload
+from apps.reports.services import process, register_upload
 
 from .conftest import load, report_files
 
@@ -136,6 +136,27 @@ def test_deck_is_rebuilt_after_new_upload(loaded: Report,
 
     assert services.current_deck(report) is None, (
         "к новой загрузке подтянулась старая презентация")
+
+
+@pytest.mark.django_db
+def test_replacing_a_report_removes_the_old_presentation(
+        loaded: Report, operator: User) -> None:
+    """Исправление рапорта убирает прежнюю презентацию вместе с файлом.
+
+    Она больше не соответствует данным и никогда не будет отдана,
+    а файл без уборки остался бы в хранилище навсегда: по презентации
+    на каждое исправление.
+    """
+    old = services.build_deck(loaded)
+    old_path = Path(old.file.path)
+    assert old_path.exists()
+
+    path = _find(INCIDENT_DAY) or report_files()[0]
+    again = register_upload(path, operator)
+    process(again)
+
+    assert not Deck.objects.filter(pk=old.pk).exists(), "запись осталась"
+    assert not old_path.exists(), "файл презентации остался в хранилище"
 
 
 @pytest.mark.django_db

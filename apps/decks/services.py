@@ -166,13 +166,24 @@ def record_download(report: Report, kind: str, name: str, user) -> None:
 def stale_decks(upload: Upload) -> int:
     """Убрать презентации, собранные из устаревших загрузок этих суток.
 
+    Вызывается после успешной записи данных: рапорт исправили, значит
+    прежняя презентация больше не соответствует данным и никогда
+    не будет отдана.
+
+    Удаление записи файл не уносит — Django этого не делает намеренно.
+    Поэтому файл убирается явно, иначе хранилище растёт на презентацию
+    с каждым исправлением рапорта.
+
     Args:
         upload: Действующая загрузка.
 
     Returns:
         Сколько презентаций удалено.
     """
-    outdated = Deck.objects.filter(report=upload.report).exclude(upload=upload)
-    count = outdated.count()
-    outdated.delete()
-    return count
+    outdated = list(Deck.objects.filter(report=upload.report)
+                    .exclude(upload=upload))
+    for deck in outdated:
+        if deck.file:
+            deck.file.delete(save=False)
+        deck.delete()
+    return len(outdated)
