@@ -20,6 +20,3 @@ DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]")
 
 INTERNAL_IPS = ["127.0.0.1"]
-
-# Писем в разработке никуда не отправляем — они печатаются в консоль.
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

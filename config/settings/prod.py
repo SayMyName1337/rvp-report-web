@@ -45,14 +45,11 @@ SECURE_HSTS_PRELOAD = False
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_AGE = int(env("DJANGO_SESSION_AGE", "86400"))
 
-EMAIL_BACKEND = env("DJANGO_EMAIL_BACKEND",
-                    "django.core.mail.backends.smtp.EmailBackend")
-EMAIL_HOST = env("EMAIL_HOST")
-EMAIL_PORT = int(env("EMAIL_PORT", "25"))
-EMAIL_HOST_USER = env("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
-EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", False)
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "rvp-report@localhost")
+# Настроек почты здесь нет намеренно: система писем не отправляет.
+# Восстановление пароля выполняет администратор вручную, рассылок
+# и уведомлений не предусмотрено. Заполненные параметры почтового
+# сервера создавали бы впечатление работающей рассылки. Появится
+# рассылка — появятся и настройки, вместе с ней.
 
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},

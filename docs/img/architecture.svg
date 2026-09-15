@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600"
+     font-family="Segoe UI, Arial, sans-serif" role="img"
+     aria-label="Схема состава информационной системы «Суточный рапорт»">
+  <title>Состав системы и взаимодействие компонентов</title>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#00326E"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="600" fill="#FFFFFF"/>
+
+  <!-- ЗАГОЛОВОК -->
+  <text x="20" y="34" font-size="19" font-weight="600" fill="#00326E">
+    Состав системы и взаимодействие компонентов
+  </text>
+  <text x="20" y="56" font-size="13" fill="#6E6E6E">
+    Информационная система «Суточный рапорт». Узел предприятия, контур компании.
+  </text>
+  <line x1="20" y1="70" x2="940" y2="70" stroke="#4BAF46" stroke-width="3"/>
+
+  <!-- РАБОЧЕЕ МЕСТО -->
+  <rect x="20" y="150" width="170" height="86" rx="8"
+        fill="#F1F4F8" stroke="#DDE3EA"/>
+  <text x="105" y="180" font-size="14" font-weight="600" fill="#00326E"
+        text-anchor="middle">Рабочее место</text>
+  <text x="105" y="202" font-size="12" fill="#6E6E6E" text-anchor="middle">браузер</text>
+  <text x="105" y="220" font-size="12" fill="#6E6E6E" text-anchor="middle">ЦИТУ, руководство</text>
+
+  <!-- NGINX -->
+  <rect x="250" y="150" width="180" height="86" rx="8"
+        fill="#FFFFFF" stroke="#00326E" stroke-width="1.5"/>
+  <text x="340" y="180" font-size="14" font-weight="600" fill="#00326E"
+        text-anchor="middle">nginx</text>
+  <text x="340" y="202" font-size="12" fill="#6E6E6E" text-anchor="middle">завершение TLS</text>
+  <text x="340" y="220" font-size="12" fill="#6E6E6E" text-anchor="middle">статические файлы</text>
+
+  <!-- ПРИЛОЖЕНИЕ -->
+  <rect x="490" y="96" width="450" height="300" rx="10"
+        fill="#FFFFFF" stroke="#00326E" stroke-width="2"/>
+  <rect x="490" y="96" width="450" height="34" rx="10" fill="#00326E"/>
+  <rect x="490" y="120" width="450" height="10" fill="#00326E"/>
+  <text x="715" y="119" font-size="14" font-weight="600" fill="#FFFFFF"
+        text-anchor="middle">Приложение — gunicorn и Django</text>
+
+  <rect x="510" y="150" width="410" height="66" rx="6"
+        fill="#F1F4F8" stroke="#DDE3EA"/>
+  <text x="526" y="172" font-size="13" font-weight="600" fill="#00326E">
+    Страницы и разграничение доступа
+  </text>
+  <text x="526" y="192" font-size="11.5" fill="#6E6E6E">
+    учётные записи · рапорты · сводки · разметка
+  </text>
+  <text x="526" y="208" font-size="11.5" fill="#6E6E6E">
+    презентации · справочники · руководство
+  </text>
+
+  <rect x="510" y="232" width="410" height="80" rx="6"
+        fill="#EBF0D7" stroke="#9BC855"/>
+  <text x="526" y="254" font-size="13" font-weight="600" fill="#0A8F2D">
+    Механизм разбора и формирования презентации
+  </text>
+  <text x="526" y="274" font-size="11.5" fill="#6E6E6E">
+    чтение .xlsx по подписям строк и столбцов
+  </text>
+  <text x="526" y="290" font-size="11.5" fill="#6E6E6E">
+    модель рапорта · проверки · сборка слайдов
+  </text>
+  <text x="526" y="306" font-size="11.5" fill="#6E6E6E">
+    перенесён из настольной версии
+  </text>
+
+  <rect x="510" y="328" width="410" height="48" rx="6"
+        fill="#F1F4F8" stroke="#DDE3EA"/>
+  <text x="526" y="349" font-size="13" font-weight="600" fill="#00326E">
+    Доступ к данным
+  </text>
+  <text x="526" y="367" font-size="11.5" fill="#6E6E6E">
+    объектное отображение и миграции Django
+  </text>
+
+  <!-- ХРАНИЛИЩА -->
+  <rect x="490" y="466" width="210" height="86" rx="8"
+        fill="#FFFFFF" stroke="#005591" stroke-width="1.5"/>
+  <text x="595" y="494" font-size="14" font-weight="600" fill="#00326E"
+        text-anchor="middle">PostgreSQL</text>
+  <text x="595" y="515" font-size="12" fill="#6E6E6E" text-anchor="middle">показатели суток</text>
+  <text x="595" y="533" font-size="12" fill="#6E6E6E" text-anchor="middle">журналы и справочники</text>
+
+  <rect x="730" y="466" width="210" height="86" rx="8"
+        fill="#FFFFFF" stroke="#005591" stroke-width="1.5"/>
+  <text x="835" y="494" font-size="14" font-weight="600" fill="#00326E"
+        text-anchor="middle">Файловое хранилище</text>
+  <text x="835" y="515" font-size="12" fill="#6E6E6E" text-anchor="middle">исходные рапорты</text>
+  <text x="835" y="533" font-size="12" fill="#6E6E6E" text-anchor="middle">презентации</text>
+
+  <!-- СВЯЗИ -->
+  <line x1="190" y1="193" x2="244" y2="193" stroke="#00326E" stroke-width="2"
+        marker-end="url(#arrow)"/>
+  <text x="217" y="184" font-size="11" fill="#00326E" text-anchor="middle">HTTPS</text>
+
+  <line x1="430" y1="193" x2="484" y2="193" stroke="#00326E" stroke-width="2"
+        marker-end="url(#arrow)"/>
+  <text x="457" y="184" font-size="11" fill="#00326E" text-anchor="middle">HTTP</text>
+
+  <line x1="595" y1="396" x2="595" y2="460" stroke="#00326E" stroke-width="2"
+        marker-end="url(#arrow)"/>
+  <line x1="835" y1="396" x2="835" y2="460" stroke="#00326E" stroke-width="2"
+        marker-end="url(#arrow)"/>
+
+  <!-- ПОЯСНЕНИЯ -->
+  <text x="20" y="300" font-size="12" font-weight="600" fill="#00326E">Наружу открыт</text>
+  <text x="20" y="318" font-size="12" font-weight="600" fill="#00326E">только nginx</text>
+  <text x="20" y="340" font-size="11.5" fill="#6E6E6E">Порт базы данных</text>
+  <text x="20" y="356" font-size="11.5" fill="#6E6E6E">не публикуется.</text>
+
+  <text x="20" y="400" font-size="12" font-weight="600" fill="#00326E">Файлы не отдаются</text>
+  <text x="20" y="418" font-size="12" font-weight="600" fill="#00326E">веб-сервером</text>
+  <text x="20" y="440" font-size="11.5" fill="#6E6E6E">Выгрузка идёт через</text>
+  <text x="20" y="456" font-size="11.5" fill="#6E6E6E">приложение с проверкой</text>
+  <text x="20" y="472" font-size="11.5" fill="#6E6E6E">прав и записью в журнал.</text>
+
+  <text x="20" y="516" font-size="12" font-weight="600" fill="#00326E">Внешних обращений нет</text>
+  <text x="20" y="538" font-size="11.5" fill="#6E6E6E">Система работает</text>
+  <text x="20" y="554" font-size="11.5" fill="#6E6E6E">в контуре предприятия.</text>
+</svg>
