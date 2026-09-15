@@ -37,7 +37,11 @@ SECURE_HSTS_SECONDS = int(env("DJANGO_HSTS_SECONDS", "0"))
 SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("DJANGO_HSTS_SUBDOMAINS", False)
 SECURE_HSTS_PRELOAD = False
 
-# Сессия закрывается вместе с браузером и истекает через сутки бездействия.
+# Сессия закрывается вместе с браузером, а на стороне сервера живёт
+# сутки с момента входа. Именно с момента входа, а не с последнего
+# обращения: продление на каждом запросе потребовало бы записи в базу
+# при каждом обращении, а разница здесь несущественна — рабочий день
+# короче суток.
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_AGE = int(env("DJANGO_SESSION_AGE", "86400"))
 

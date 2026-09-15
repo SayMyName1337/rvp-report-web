@@ -32,7 +32,7 @@ def test_guide_opens(client, viewer: User) -> None:
     response = client.get(reverse("guide:index"))
 
     assert response.status_code == 200
-    assert "Загрузка рапорта" in response.content.decode()
+    assert "Загрузка суточного рапорта" in response.content.decode()
 
 
 @pytest.mark.django_db
@@ -69,6 +69,35 @@ def test_guide_is_linked_from_every_page(client, viewer: User) -> None:
     page = client.get(reverse("analytics:dashboard")).content.decode()
 
     assert reverse("guide:index") in page
+
+
+#: Формы обращения ко второму лицу. Руководство — сдаточный документ,
+#: и изложение в нём безличное: «файл выбирается», «следует нажать».
+SECOND_PERSON = re.compile(
+    r"\b(вы|вам|вами|вас|ваш|ваша|ваше|ваши|вашего|вашей|вашему|вашим|"
+    r"ваших|вашими|вашу)\b", re.IGNORECASE)
+
+#: Цитаты интерфейсных сообщений в кавычках-ёлочках. Сообщения
+#: приводятся дословно, иначе администратор не опознает их по рассказу
+#: пользователя, — поэтому из проверки изложения они исключаются.
+QUOTED = re.compile(r"«[^»]*»")
+
+
+@pytest.mark.django_db
+def test_guide_is_written_impersonally(client, viewer: User) -> None:
+    """В руководстве нет обращения к читателю на «вы».
+
+    Требование к сдаточной документации: официальное техническое
+    изложение. Цитаты сообщений интерфейса из проверки исключены —
+    они приводятся так, как выводятся на экран.
+    """
+    client.force_login(viewer)
+    page = client.get(reverse("guide:index")).content.decode()
+
+    text = QUOTED.sub("", re.sub(r"<[^>]+>", " ", page))
+    found = SECOND_PERSON.findall(text)
+
+    assert not found, f"обращение на «вы»: {sorted(set(found))}"
 
 
 @pytest.mark.django_db

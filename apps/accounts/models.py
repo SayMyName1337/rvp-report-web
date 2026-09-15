@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from django.contrib.auth.models import AbstractUser, Group
 from django.db import models
+from django.utils.functional import cached_property
 
 
 class Role(models.TextChoices):
@@ -77,10 +78,20 @@ class User(AbstractUser):
                            (self.first_name, self.patronymic) if part)
         return f"{self.last_name} {initials}".strip()
 
+    @cached_property
+    def role_names(self) -> set[str]:
+        """Названия ролей, назначенных пользователю.
+
+        Читаются из базы один раз на запрос и дальше берутся из памяти:
+        права проверяются и в представлениях, и в шаблоне меню, то есть
+        по нескольку раз на страницу.
+        """
+        return {group.name for group in self.groups.all()}
+
     @property
     def roles(self) -> list[str]:
-        """Названия ролей, назначенных пользователю."""
-        return [group.name for group in self.groups.all()]
+        """Названия ролей в порядке перечисления :class:`Role`."""
+        return [role.value for role in Role if role.value in self.role_names]
 
     def has_role(self, *roles: str) -> bool:
         """Состоит ли пользователь хотя бы в одной из перечисленных ролей.
@@ -92,9 +103,9 @@ class User(AbstractUser):
             ``True``, если роль назначена. Суперпользователь и
             администратор считаются обладателями любой роли.
         """
-        if self.is_superuser or self.groups.filter(name=Role.ADMIN).exists():
+        if self.is_superuser or Role.ADMIN.value in self.role_names:
             return True
-        return self.groups.filter(name__in=roles).exists()
+        return bool(self.role_names.intersection(roles))
 
     @property
     def can_upload(self) -> bool:

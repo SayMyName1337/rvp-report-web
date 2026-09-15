@@ -42,6 +42,14 @@ class UserAdmin(DjangoUserAdmin):
         ("Доступ", {"fields": ("groups", "is_active")}),
     )
 
+    def get_queryset(self, request):
+        """Перечень со сразу подгруженными ролями.
+
+        Роли показаны отдельным столбцом; без этого список делает
+        по запросу на каждую строку.
+        """
+        return super().get_queryset(request).prefetch_related("groups")
+
     @admin.display(description="Роли")
     def roles_display(self, obj: User) -> str:
         """Роли пользователя одной строкой."""

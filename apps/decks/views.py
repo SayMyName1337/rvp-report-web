@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 
 from django.contrib import messages
@@ -76,7 +77,7 @@ class PdfView(LoginRequiredMixin, View):
         name = f"Суточный рапорт {report.date:%Y-%m-%d}.pdf"
         services.record_download(report, Download.Kind.DECK, name,
                                  request.user)
-        return FileResponse(open(pdf, "rb"), as_attachment=True,
+        return FileResponse(BytesIO(pdf), as_attachment=True,
                             filename=name, content_type="application/pdf")
 
 

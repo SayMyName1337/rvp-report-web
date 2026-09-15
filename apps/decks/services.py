@@ -106,14 +106,20 @@ def soffice() -> str:
     return ""
 
 
-def to_pdf(source: Path) -> Path:
+def to_pdf(source: Path) -> bytes:
     """Перевести презентацию в PDF средствами LibreOffice.
+
+    Возвращается содержимое файла, а не путь к нему: временный каталог
+    удаляется здесь же, при любом исходе. Иначе каждый перевод оставлял
+    бы в системном каталоге временных файлов PDF с коммерческой тайной
+    и персональными данными, за которыми никто не следит. Файл невелик
+    (порядка мегабайта), а переводов бывает несколько в сутки.
 
     Args:
         source: Файл презентации.
 
     Returns:
-        Путь к созданному PDF во временном каталоге вызывающего.
+        Содержимое созданного PDF.
 
     Raises:
         RuntimeError: Если LibreOffice недоступен или перевод не удался.
@@ -124,23 +130,23 @@ def to_pdf(source: Path) -> Path:
             "LibreOffice на сервере не установлен, перевод в PDF недоступен. "
             "Скачайте презентацию в формате PowerPoint.")
 
-    folder = Path(tempfile.mkdtemp())
-    try:
-        subprocess.run(
-            [program, "--headless", "--convert-to", "pdf",
-             "--outdir", str(folder), str(source)],
-            check=True, capture_output=True, timeout=PDF_TIMEOUT)
-    except subprocess.TimeoutExpired as error:
-        raise RuntimeError("перевод в PDF занял слишком много времени") \
-            from error
-    except subprocess.CalledProcessError as error:
-        raise RuntimeError(
-            f"перевод в PDF не удался: {error.stderr[:200]!r}") from error
+    with tempfile.TemporaryDirectory() as folder:
+        try:
+            subprocess.run(
+                [program, "--headless", "--convert-to", "pdf",
+                 "--outdir", folder, str(source)],
+                check=True, capture_output=True, timeout=PDF_TIMEOUT)
+        except subprocess.TimeoutExpired as error:
+            raise RuntimeError("перевод в PDF занял слишком много времени") \
+                from error
+        except subprocess.CalledProcessError as error:
+            raise RuntimeError(
+                f"перевод в PDF не удался: {error.stderr[:200]!r}") from error
 
-    result = folder / (source.stem + ".pdf")
-    if not result.exists():
-        raise RuntimeError("LibreOffice не создал файл PDF")
-    return result
+        result = Path(folder) / (source.stem + ".pdf")
+        if not result.exists():
+            raise RuntimeError("LibreOffice не создал файл PDF")
+        return result.read_bytes()
 
 
 def record_download(report: Report, kind: str, name: str, user) -> None:

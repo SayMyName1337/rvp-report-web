@@ -2,6 +2,7 @@
 """Проверки выдачи презентаций и защиты персональных данных."""
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -198,6 +199,29 @@ def test_pdf_absence_is_stated_plainly(client, loaded: Report,
     client.force_login(viewer)
     response = client.get(reverse("decks:pdf", args=[loaded.date]))
     assert response.status_code == 302
+
+
+@pytest.mark.django_db
+def test_pdf_leaves_nothing_in_the_temporary_folder(loaded: Report, tmp_path,
+                                                    monkeypatch) -> None:
+    """Перевод в PDF не оставляет за собой временных файлов.
+
+    В презентации есть и коммерческая тайна, и фамилии из описания
+    происшествия. Забытый в системном каталоге PDF — это утечка,
+    за которой никто не следит, поэтому каталог убирается при любом
+    исходе, включая отсутствие LibreOffice.
+    """
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+
+    deck = services.build_deck(loaded)
+    try:
+        content = services.to_pdf(Path(deck.file.path))
+    except RuntimeError:
+        content = None                      # LibreOffice не установлен
+
+    assert not list(tmp_path.iterdir()), "после перевода остался мусор"
+    if content is not None:
+        assert content.startswith(b"%PDF"), "вернулся не PDF"
 
 
 @pytest.mark.django_db

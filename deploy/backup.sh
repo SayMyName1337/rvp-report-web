@@ -14,6 +14,19 @@
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Параметры читаются из .env в окружение сценария. Ключ --env-file
+# передаёт их только docker compose, а имя базы и пользователя нужны
+# здесь же, в командной строке pg_dump. Cron запускает сценарий
+# с пустым окружением, поэтому без этой строки он обрывался на первом
+# же обращении к $POSTGRES_USER — то есть копии не делались вовсе.
+# Значения с пробелами в .env должны быть взяты в кавычки.
+if [ -f "$ROOT/.env" ]; then
+    set -a
+    . "$ROOT/.env"
+    set +a
+fi
+
 COMPOSE="docker compose -f $ROOT/deploy/compose.yaml --env-file $ROOT/.env"
 TARGET="${BACKUP_DIR:-$ROOT/deploy/backup}"
 KEEP_DAYS="${BACKUP_KEEP_DAYS:-30}"
@@ -21,10 +34,17 @@ STAMP="$(date +%Y-%m-%d_%H%M)"
 
 mkdir -p "$TARGET"
 
+# Копия пишется во временное имя и переименовывается только после
+# успешного завершения: оборванный дамп не должен выглядеть
+# как готовая копия.
+PARTIAL="$TARGET/db_$STAMP.dump.part"
+trap 'rm -f "$PARTIAL"' EXIT
+
 echo "[$(date '+%F %T')] Копия базы..."
 $COMPOSE exec -T db pg_dump \
     -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format=custom \
-    > "$TARGET/db_$STAMP.dump"
+    > "$PARTIAL"
+mv "$PARTIAL" "$TARGET/db_$STAMP.dump"
 
 echo "[$(date '+%F %T')] Копия файлов..."
 $COMPOSE run --rm --no-deps -v "$TARGET:/backup" web \
