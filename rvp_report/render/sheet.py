@@ -1,17 +1,22 @@
 # -*- coding: utf-8 -*-
 """Суточный рапорт на одном листе А3.
 
-Та же отчётность, что на одиннадцати слайдах доклада, но сведённая
-на один лист: его печатают и раздают на совещании либо пересылают
-файлом. Доклад по слайдам это не заменяет — состав слайдов согласован
+Та же отчётность, что на слайдах доклада, но сведённая на один
+лист: его печатают и раздают на совещании либо пересылают файлом.
+Доклад по слайдам это не заменяет — состав слайдов согласован
 и изменению не подлежит.
+
+На лист выносятся первые десять слайдов. Одиннадцатый служебный —
+замечания к исходным данным и перечень посчитанных величин; он нужен
+тому, кто отвечает за данные, а не тем, кому лист раздают. Эти
+сведения остаются в системе и в презентации доклада.
 
 Лист собирается тем же разбором того же исходного файла, что
 и презентация, поэтому цифры на нём совпадают со слайдами
 по построению, а не по совпадению.
 
 **Что на лист не помещается.** Площадь А3 больше слайда всего
-в 1,9 раза, а слайдов одиннадцать. Поэтому перечни, у которых
+в 1,9 раза, а слайдов десять. Поэтому перечни, у которых
 в рапорте бывают десятки строк — месторождения, фонд, скважины
 в бурении, — выводятся до заданного числа строк, а остаток
 сворачивается в строку «прочие»: свёрнутое не теряется, а
@@ -39,9 +44,8 @@ GAP = 0.5
 #: Ширина полосы содержимого.
 CONTENT_W = A3_W_CM - 2 * MARGIN
 
-#: Отступы нижних полос и верх подвала.
-BAND_1 = 21.5
-BAND_2 = 24.7
+#: Отступ нижней полосы и верх подвала.
+BAND = 23.0
 FOOTER_TOP = A3_H_CM - 1.4
 
 #: Кегли листа. Мельче слайдовых: данных выносится больше, но лист
@@ -63,15 +67,11 @@ DERIVED = "расч."
 #: Сколько строк показывать в перечнях, которые бывают длиннее.
 #: Значения подобраны так, чтобы самая длинная колонка укладывалась
 #: между плитками и нижней полосой на данных за август и сентябрь.
-TOP_FIELDS = 7
-TOP_STOCK = 6
+TOP_FIELDS = 9
+TOP_STOCK = 7
 TOP_REASONS = 5
-TOP_DRILLING = 4
-TOP_BOTTOM = 3
-
-#: В нижней полосе места на строку больше: блоки там стоят последними
-#: и упираются только в подвал.
-TOP_WIDE = 4
+TOP_DRILLING = 8
+TOP_BOTTOM = 6
 
 
 def _short(text, limit: int) -> str:
@@ -477,24 +477,6 @@ def _pigging(sheet: Sheet, r: DailyReport, x: float, y: float,
                        widths=[2.2, 1.2, 1.2])
 
 
-def _issues(sheet: Sheet, r: DailyReport, x: float, y: float,
-            w: float) -> float:
-    """Замечания к исходным данным."""
-    items = [item for item in r.issues if item.level != "info"]
-    rest = max(len(items) - TOP_WIDE, 0)
-    note = f"{len(items)} за сутки"
-    if rest:
-        note += f", показано {TOP_WIDE}"
-    top = sheet.block(x, y, w, "Замечания к исходным данным", note)
-    rows = [[_short(item.where, 18), _short(item.message, 34)]
-            for item in items[:TOP_WIDE]]
-    if not rows:
-        rows = [["замечаний нет", "рапорт непротиворечив сам себе"]]
-    return sheet.table(x, top, w, ["Блок", "Замечание"], rows,
-                       widths=[1.2, 2.8],
-                       aligns=[PP_ALIGN.LEFT, PP_ALIGN.LEFT])
-
-
 def _movement(sheet: Sheet, r: DailyReport, x: float, y: float,
               w: float) -> float:
     """Движение фонда за сутки: запуски и остановки."""
@@ -543,28 +525,13 @@ def _incidents(sheet: Sheet, r: DailyReport, x: float, y: float,
                        aligns=[PP_ALIGN.LEFT] * 5)
 
 
-def _derived(sheet: Sheet, r: DailyReport, x: float, y: float,
-             w: float) -> float:
-    """Величины, посчитанные программой, и способ их получения."""
-    items = r.ledger.derived_items
-    top = sheet.block(x, y, w, "Величины, посчитанные программой",
-                      f"пометка «{DERIVED}»")
-    rows = [[_short(item.label, 30), item.value, _short(item.origin, 52)]
-            for item in items[:TOP_BOTTOM]]
-    if not rows:
-        rows = [["расчётных величин нет", "", ""]]
-    return sheet.table(x, top, w, ["Показатель", "Значение", "Как получено"],
-                       rows, widths=[2.2, 1.0, 3.6],
-                       aligns=[PP_ALIGN.LEFT, PP_ALIGN.RIGHT, PP_ALIGN.LEFT])
-
-
 def _footer(deck: Deck, sheet: Sheet) -> None:
     """Подвал: оговорки и гриф."""
     deck.line(sheet.slide, MARGIN, FOOTER_TOP, CONTENT_W, color=T.LINE)
-    note = ("Перечни месторождений, фонда, скважин в бурении и замечаний "
-            "приведены до заданного числа строк; остаток сведён в строку "
-            "«прочие» и в сумме учтён. Полные перечни — в презентации "
-            f"доклада за те же отчётные сутки. Пометка «{DERIVED}» означает "
+    note = ("Перечни месторождений, фонда и скважин в бурении приведены "
+            "до заданного числа строк; остаток сведён в строку «прочие» "
+            "и в сумме учтён. Полные перечни — в презентации доклада "
+            f"за те же отчётные сутки. Пометка «{DERIVED}» означает "
             "величину, вычисленную программой; её слагаемые раскрыты "
             "в системе, раздел «Откуда цифры».")
     deck.write(deck.textbox(sheet.slide, MARGIN, FOOTER_TOP + 0.14,
@@ -605,7 +572,8 @@ def build(r: DailyReport, output: str, assets_dir: str | None = None) -> str:
     _fields(sheet, r, x1, left + GAP, col)
 
     second = _stock(sheet, r, x2, y, col)
-    _downtime(sheet, r, x2, second + GAP, col)
+    second = _downtime(sheet, r, x2, second + GAP, col)
+    _movement(sheet, r, x2, second + GAP, col)
 
     third = _injection(sheet, r, x3, y, col)
     third = _tanks(sheet, r, x3, third + GAP, col)
@@ -615,13 +583,9 @@ def build(r: DailyReport, output: str, assets_dir: str | None = None) -> str:
     fourth = _power(sheet, r, x4, fourth + GAP, col)
     _drilling(sheet, r, x4, fourth + GAP, col)
 
-    _ramp_up(sheet, r, x1, BAND_1, col)
-    _pigging(sheet, r, x2, BAND_1, col)
-    _incidents(sheet, r, x3, BAND_1, wide)
-
-    _movement(sheet, r, x1, BAND_2, col)
-    _issues(sheet, r, x2, BAND_2, col)
-    _derived(sheet, r, x3, BAND_2, wide)
+    _ramp_up(sheet, r, x1, BAND, col)
+    _pigging(sheet, r, x2, BAND, col)
+    _incidents(sheet, r, x3, BAND, wide)
 
     _footer(deck, sheet)
     deck.prs.save(output)

@@ -47,7 +47,7 @@ def test_sheet_covers_every_block_of_the_deck(built: Path) -> None:
     """На листе присутствуют все разделы доклада.
 
     Требование заказчика: состав листа совпадает с составом
-    одиннадцати слайдов один в один.
+    слайдов доклада один в один, кроме одиннадцатого — служебного.
     """
     prs = Presentation(str(built))
     text = "\n".join(
@@ -60,9 +60,13 @@ def test_sheet_covers_every_block_of_the_deck(built: Path) -> None:
                   "Качество товарной нефти", "Попутный нефтяной газ",
                   "Энергетика", "Бурение", "Вывод на режим",
                   "Очистные устройства", "Промышленная безопасность",
-                  "Движение фонда", "Замечания к исходным данным",
-                  "Величины, посчитанные программой"):
+                  "Движение фонда"):
         assert title in text, f"на листе нет раздела «{title}»"
+
+    for title in ("Замечания к исходным данным",
+                  "Величины, посчитанные программой"):
+        assert title not in text, (
+            f"на листе оказался служебный раздел «{title}»")
 
 
 def test_nothing_runs_off_the_sheet(built: Path) -> None:
@@ -79,7 +83,27 @@ def test_nothing_runs_off_the_sheet(built: Path) -> None:
             f"элемент выходит за нижний край: {shape.name}")
 
 
-def test_blocks_do_not_overlap_tables(built: Path) -> None:
+#: Заголовки блоков листа. По ним опознаются подписи среди прочих
+#: надписей, чтобы проверить, что таблица их не накрывает.
+BLOCK_TITLES = (
+    "Потенциал добычи", "Добыча по месторождениям",
+    "Состояние фонда скважин", "Причины текущего простоя",
+    "Движение фонда", "Поддержание пластового давления",
+    "Резервуарный парк", "Качество товарной нефти",
+    "Попутный нефтяной газ", "Энергетика", "Бурение", "Вывод на режим",
+    "Очистные устройства", "Промышленная безопасность",
+)
+
+
+def _apart(first, second) -> bool:
+    """Не пересекаются ли два прямоугольника."""
+    return (first[0] + first[2] <= second[0]
+            or second[0] + second[2] <= first[0]
+            or first[1] + first[3] <= second[1]
+            or second[1] + second[3] <= first[1])
+
+
+def test_tables_do_not_overlap_each_other(built: Path) -> None:
     """Таблицы не накладываются друг на друга.
 
     Высота таблицы рассчитывается по числу строк. Если содержимое
@@ -92,8 +116,26 @@ def test_blocks_do_not_overlap_tables(built: Path) -> None:
 
     for index, first in enumerate(boxes):
         for second in boxes[index + 1:]:
-            apart = (first[0] + first[2] <= second[0]
-                     or second[0] + second[2] <= first[0]
-                     or first[1] + first[3] <= second[1]
-                     or second[1] + second[3] <= first[1])
-            assert apart, f"таблицы перекрываются: {first} и {second}"
+            assert _apart(first, second), (
+                f"таблицы перекрываются: {first} и {second}")
+
+
+def test_tables_do_not_cover_block_titles(built: Path) -> None:
+    """Таблица не накрывает заголовок блока.
+
+    Соседство таблицы снизу и заголовка следующего блока — самое узкое
+    место раскладки: проверка только по таблицам его не ловит, потому
+    что заголовок таблицей не является.
+    """
+    prs = Presentation(str(built))
+    tables = [(s.left, s.top, s.width, s.height)
+              for s in prs.slides[0].shapes if s.has_table]
+    titles = [(s.left, s.top, s.width, s.height, s.text_frame.text)
+              for s in prs.slides[0].shapes
+              if s.has_text_frame and s.text_frame.text in BLOCK_TITLES]
+
+    assert len(titles) >= 10, "заголовки блоков не опознаны"
+    for title in titles:
+        for table in tables:
+            assert _apart(title[:4], table), (
+                f"таблица накрывает заголовок «{title[4]}»")
