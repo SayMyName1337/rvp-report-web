@@ -2,21 +2,33 @@
 """Сводки за период и дашборд руководства."""
 from __future__ import annotations
 
+import tempfile
 from datetime import date, datetime, timedelta
+from io import BytesIO
+from pathlib import Path
 
+from django.contrib import messages
 from django.contrib.auth.mixins import (LoginRequiredMixin,
                                         UserPassesTestMixin)
 from django.db.models import Count
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import TemplateView, View
 
+from apps.decks import services as deck_services
+from apps.decks.models import Download
 from apps.reports.models import Report
+from rvp_report.render import period_sheet
 
-from . import dashboard, periods, summary
+from . import dashboard, periods, services, summary
 from .models import CrossCheck
+
+#: Тип содержимого презентации PowerPoint.
+PPTX_TYPE = ("application/vnd.openxmlformats-officedocument"
+             ".presentationml.presentation")
 
 
 def _parse_day(value: str) -> date | None:
@@ -176,3 +188,41 @@ class SummaryView(LoginRequiredMixin, TemplateView):
         chosen = [row for row in rows if row.get("qo")][:12]
         return {"labels": [str(row[key]) for row in chosen],
                 "values": [round(row["qo"], 1) for row in chosen]}
+
+
+class SummarySheetView(LoginRequiredMixin, View):
+    """Выдача аналитики за период листом А3.
+
+    Лист собирается на каждое обращение: период задаётся адресом,
+    их сочетаний не перечесть, и хранить готовые листы незачем —
+    сборка занимает секунды.
+    """
+
+    def get(self, request, *args, **kwargs):
+        """Отдать лист в PowerPoint или в PDF."""
+        period = _period_from(request, "month")
+        data = services.sheet_data(period)
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / f"Аналитика — {period.title}.pptx"
+            period_sheet.build(data, str(path), assets_dir=folder)
+            if kwargs.get("fmt") == "pdf":
+                try:
+                    content = deck_services.to_pdf(path)
+                except RuntimeError as error:
+                    messages.warning(request, str(error))
+                    return redirect(
+                        f"{reverse('analytics:summary')}?{period.query}")
+                name = f"Аналитика — {period.title}.pdf"
+                deck_services.record_download(
+                    None, Download.Kind.SHEET, name, request.user)
+                return FileResponse(BytesIO(content), as_attachment=True,
+                                    filename=name,
+                                    content_type="application/pdf")
+            content = path.read_bytes()
+
+        name = path.name
+        deck_services.record_download(None, Download.Kind.SHEET, name,
+                                      request.user)
+        return FileResponse(BytesIO(content), as_attachment=True,
+                            filename=name, content_type=PPTX_TYPE)

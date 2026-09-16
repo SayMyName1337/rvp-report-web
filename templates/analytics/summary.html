@@ -13,6 +13,12 @@
         {% if next %}
             <a class="linkbutton" href="?{{ next.query }}">следующий →</a>
         {% endif %}
+        <a class="button" style="text-decoration:none"
+           href="{% url 'analytics:summary_sheet_format' 'pdf' %}?{{ period.query }}">
+            Лист А3</a>
+        <a class="linkbutton"
+           href="{% url 'analytics:summary_sheet' %}?{{ period.query }}">
+            А3 в PowerPoint</a>
     </div>
 
     <div class="periods">

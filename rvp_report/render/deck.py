@@ -10,7 +10,9 @@ import struct
 from pptx import Presentation
 from pptx.chart.data import CategoryChartData
 from pptx.dml.color import RGBColor
-from pptx.enum.chart import XL_CHART_TYPE, XL_LABEL_POSITION
+from pptx.enum.chart import (XL_CHART_TYPE, XL_LABEL_POSITION,
+                             XL_LEGEND_POSITION)
+from pptx.enum.dml import MSO_LINE_DASH_STYLE
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Cm, Pt
@@ -386,7 +388,9 @@ class Deck:
 
     def column_chart(self, slide, x: float, y: float, w: float, h: float,
                      categories: list[str], values: list[float | None],
-                     colors: list[RGBColor] | None = None):
+                     colors: list[RGBColor] | None = None,
+                     data_labels: bool = True,
+                     number_format: str | None = None):
         """Добавить столбчатую диаграмму средствами PowerPoint.
 
         В отличие от растровой картинки такая диаграмма остаётся
@@ -402,6 +406,12 @@ class Deck:
             categories: Подписи столбцов.
             values: Значения столбцов.
             colors: Цвет каждого столбца; короткий список повторяется.
+            data_labels: Подписывать ли значения над столбцами. При
+                большом числе столбцов подписи налезают друг на друга
+                и их убирают.
+            number_format: Формат подписей оси значений. Без него
+                PowerPoint берёт формат данных: шестизначные величины
+                выводятся без разделителя разрядов.
 
         Returns:
             Созданную диаграмму.
@@ -421,15 +431,16 @@ class Deck:
 
         plot = chart.plots[0]
         plot.gap_width = 60
-        plot.has_data_labels = True
-        labels = plot.data_labels
-        labels.number_format = "# ##0"
-        labels.number_format_is_linked = False
-        labels.position = XL_LABEL_POSITION.OUTSIDE_END
-        labels.font.size = T.SIZE_TABLE
-        labels.font.bold = True
-        labels.font.name = T.FONT
-        labels.font.color.rgb = T.INK
+        plot.has_data_labels = data_labels
+        if data_labels:
+            labels = plot.data_labels
+            labels.number_format = "# ##0"
+            labels.number_format_is_linked = False
+            labels.position = XL_LABEL_POSITION.OUTSIDE_END
+            labels.font.size = T.SIZE_TABLE
+            labels.font.bold = True
+            labels.font.name = T.FONT
+            labels.font.color.rgb = T.INK
 
         palette = colors or [T.BRAND]
         for index, point in enumerate(plot.series[0].points):
@@ -442,6 +453,82 @@ class Deck:
         value_axis.format.line.color.rgb = T.LINE
         value_axis.tick_labels.font.size = T.SIZE_FOOTER
         value_axis.tick_labels.font.color.rgb = T.MUTED
+        if number_format:
+            value_axis.tick_labels.number_format = number_format
+            value_axis.tick_labels.number_format_is_linked = False
+
+        category_axis = chart.category_axis
+        category_axis.format.line.color.rgb = T.LINE
+        category_axis.tick_labels.font.size = T.SIZE_FOOTER
+        category_axis.tick_labels.font.color.rgb = T.MUTED
+        return chart
+
+    def line_chart(self, slide, x: float, y: float, w: float, h: float,
+                   categories: list[str], series: list[dict],
+                   number_format: str | None = None):
+        """Добавить линейную диаграмму средствами PowerPoint.
+
+        Ряд по суткам рисуется линией, а не столбцами, намеренно.
+        Столбец передаёт величину своей длиной, поэтому его основание
+        обязано стоять на нуле; суточная добыча меняется на проценты,
+        и при нулевом основании столбцы неразличимы, а при обрезанной
+        снизу оси — преувеличивают разницу в разы. У линии значение
+        задаёт только положение точки, поэтому смещённая ось её
+        не искажает.
+
+        Пропущенные сутки передаются значением ``None``: на их месте
+        остаётся разрыв, а не прямая между соседними сутками.
+
+        Args:
+            slide: Слайд размещения.
+            x: Отступ слева, см.
+            y: Отступ сверху, см.
+            w: Ширина, см.
+            h: Высота, см.
+            categories: Подписи по оси времени.
+            series: Ряды вида ``{"name", "values", "color", "dash"}``.
+            number_format: Формат подписей оси значений.
+
+        Returns:
+            Созданную диаграмму.
+        """
+        data = CategoryChartData()
+        data.categories = categories
+        for item in series:
+            data.add_series(item["name"], item["values"])
+
+        frame = slide.shapes.add_chart(
+            XL_CHART_TYPE.LINE, Cm(x), Cm(y), Cm(w), Cm(h), data)
+        chart = frame.chart
+        chart.has_title = False
+        chart.font.size = T.SIZE_FOOTER
+        chart.font.name = T.FONT
+        chart.font.color.rgb = T.MUTED
+
+        chart.has_legend = len(series) > 1
+        if chart.has_legend:
+            chart.legend.position = XL_LEGEND_POSITION.BOTTOM
+            chart.legend.include_in_layout = False
+
+        plot = chart.plots[0]
+        plot.has_data_labels = False
+        for item, line_series in zip(series, plot.series):
+            line_series.smooth = False
+            line = line_series.format.line
+            line.color.rgb = item.get("color") or T.BRAND
+            line.width = Pt(item.get("width", 1.75))
+            if item.get("dash"):
+                line.dash_style = MSO_LINE_DASH_STYLE.DASH
+
+        value_axis = chart.value_axis
+        value_axis.has_major_gridlines = True
+        value_axis.major_gridlines.format.line.color.rgb = T.LINE
+        value_axis.format.line.color.rgb = T.LINE
+        value_axis.tick_labels.font.size = T.SIZE_FOOTER
+        value_axis.tick_labels.font.color.rgb = T.MUTED
+        if number_format:
+            value_axis.tick_labels.number_format = number_format
+            value_axis.tick_labels.number_format_is_linked = False
 
         category_axis = chart.category_axis
         category_axis.format.line.color.rgb = T.LINE

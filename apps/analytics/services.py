@@ -62,3 +62,39 @@ def recheck_range(start: date | None = None,
         total += recheck(report)
         days += 1
     return days, total
+
+
+def sheet_data(period) -> dict:
+    """Данные сводки в том виде, в котором их рисует лист А3.
+
+    Слой отрисовки не знает ни про Django, ни про базу, поэтому
+    выборки приводятся здесь к простым значениям: словари, списки
+    и даты.
+
+    Args:
+        period: Период сводки.
+
+    Returns:
+        Словарь для :func:`rvp_report.render.period_sheet.build`.
+    """
+    from . import summary as summary_service
+
+    data = summary_service.build(period)
+    return {
+        "title": period.title,
+        "start": period.start,
+        "end": period.end,
+        "clamped": getattr(period, "clamped", False),
+        "completeness": data["completeness"],
+        "production": data["production"],
+        "losses": data["losses"],
+        "fields": list(data["fields"]),
+        "reasons": list(data["reasons"]),
+        "wells": list(data["wells"]),
+        "gas": list(data["gas"]),
+        "injection": data["injection"],
+        "series": [{"date": row["date"],
+                    "closed": row["production__closed_day"],
+                    "plan": row["production__plan_bp_day"]}
+                   for row in data["series"]],
+    }

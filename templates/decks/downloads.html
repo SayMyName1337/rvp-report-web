@@ -40,8 +40,12 @@
                                 {{ row.get_kind_display }}</td>
                             <td class="muted">{{ row.name }}</td>
                             <td>
-                                <a href="{% url 'reports:detail' row.report.date %}">
-                                    {{ row.report.date|date:"d.m.Y" }}</a>
+                                {% if row.report %}
+                                    <a href="{% url 'reports:detail' row.report.date %}">
+                                        {{ row.report.date|date:"d.m.Y" }}</a>
+                                {% else %}
+                                    <span class="muted">за период</span>
+                                {% endif %}
                             </td>
                         </tr>
                     {% endfor %}

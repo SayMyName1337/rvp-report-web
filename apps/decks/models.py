@@ -64,8 +64,11 @@ class Download(models.Model):
         SHEET = "sheet", "Лист А3"
         SOURCE = "source", "Исходный рапорт"
 
+    # Аналитика за период не относится к одним суткам: там период,
+    # а не дата. Имя файла в таком случае и называет, что выдано.
     report = models.ForeignKey(Report, on_delete=models.CASCADE,
-                               related_name="downloads", verbose_name="Сутки")
+                               related_name="downloads", verbose_name="Сутки",
+                               null=True, blank=True)
     kind = models.CharField("Что скачано", max_length=10,
                             choices=Kind.choices)
     name = models.CharField("Имя файла", max_length=255)

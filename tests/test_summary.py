@@ -8,12 +8,15 @@
 from __future__ import annotations
 
 from datetime import date
+from unittest import mock
 
 import pytest
 from django.urls import reverse
 
 from apps.accounts.models import User
 from apps.analytics import periods, summary
+from apps.decks import services as deck_services
+from apps.decks.models import Download
 from apps.reports.models import (DeliveryDaily, HseDaily, ProductionDaily,
                                  Report, WellTotals)
 
@@ -297,3 +300,65 @@ def test_pages_survive_an_absurd_period(client, page: str) -> None:
                           {"start": "1900-01-01", "end": "2100-12-31"})
     assert response.status_code == 200
     assert len(response.content) < 300 * 1024
+
+
+# --- лист А3 -----------------------------------------------------------------
+@pytest.mark.django_db
+def test_sheet_is_given_out_and_recorded(client) -> None:
+    """Лист А3 за период выдаётся по кнопке и попадает в журнал выдач.
+
+    Лист собирается на каждое обращение и в хранилище не оседает:
+    сочетаний периодов не перечесть. Поэтому в журнале он отмечается
+    без ссылки на сутки — суток у него нет.
+    """
+    for day in range(1, 32):
+        _day(day)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
+    client.force_login(user)
+
+    response = client.get(reverse("analytics:summary_sheet"),
+                          {"kind": "month", "on": "2026-08-01"})
+    assert response.status_code == 200
+
+    record = Download.objects.get()
+    assert record.kind == Download.Kind.SHEET
+    assert record.report is None
+    response.close()
+
+
+@pytest.mark.django_db
+def test_sheet_survives_an_empty_period(client) -> None:
+    """Период без единых суток даёт лист, а не ошибку сервера."""
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
+    client.force_login(user)
+
+    response = client.get(reverse("analytics:summary_sheet"),
+                          {"kind": "month", "on": "2026-08-01"})
+    assert response.status_code == 200
+    response.close()
+
+
+@pytest.mark.django_db
+def test_sheet_without_libreoffice_says_so(client) -> None:
+    """Без LibreOffice выдача в PDF объясняет причину, а не падает.
+
+    Ветка сообщения обращается к модулю сообщений Django, и её
+    единственная опечатка видна только здесь: в обычной работе
+    LibreOffice на месте и ветка не исполняется.
+    """
+    for day in range(1, 32):
+        _day(day)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
+    client.force_login(user)
+
+    with mock.patch.object(deck_services, "to_pdf",
+                           side_effect=RuntimeError("LibreOffice не найден")):
+        response = client.get(
+            reverse("analytics:summary_sheet_format", args=["pdf"]),
+            {"kind": "month", "on": "2026-08-01"}, follow=True)
+
+    assert response.status_code == 200
+    assert "LibreOffice не найден" in response.content.decode()
