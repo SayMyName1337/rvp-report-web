@@ -10,5 +10,8 @@ urlpatterns = [
     path("downloads/", views.DownloadsView.as_view(), name="downloads"),
     path("<day:day>/pptx/", views.DeckView.as_view(), name="pptx"),
     path("<day:day>/pdf/", views.PdfView.as_view(), name="pdf"),
+    path("<day:day>/sheet/", views.SheetView.as_view(), name="sheet"),
+    path("<day:day>/sheet/<str:fmt>/", views.SheetView.as_view(),
+         name="sheet_format"),
     path("<day:day>/source/", views.SourceView.as_view(), name="source"),
 ]

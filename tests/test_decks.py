@@ -256,3 +256,41 @@ def test_upload_without_file_does_not_break_deck(operator: User) -> None:
                           is_current=True)
     with pytest.raises(FileNotFoundError):
         services.build_deck(report)
+
+
+# --- лист А3 -----------------------------------------------------------------
+@pytest.mark.django_db
+def test_sheet_is_built_and_recorded(client, loaded: Report,
+                                     viewer: User) -> None:
+    """Лист А3 собирается по кнопке и попадает в журнал выдач."""
+    client.force_login(viewer)
+    response = client.get(reverse("decks:sheet", args=[loaded.date]))
+
+    assert response.status_code == 200
+    assert Deck.objects.filter(kind=Deck.Kind.SHEET).count() == 1
+    assert Download.objects.filter(kind=Download.Kind.SHEET).count() == 1
+    response.close()
+
+
+@pytest.mark.django_db
+def test_sheet_and_deck_live_side_by_side(loaded: Report) -> None:
+    """Лист и презентация за одни сутки не вытесняют друг друга.
+
+    Оба собираются из одной загрузки; ограничение уникальности
+    учитывает вид материала.
+    """
+    services.build_deck(loaded, Deck.Kind.DECK)
+    services.build_deck(loaded, Deck.Kind.SHEET)
+
+    assert Deck.objects.filter(report=loaded).count() == 2
+    assert services.current_deck(loaded, Deck.Kind.SHEET) is not None
+    assert services.current_deck(loaded, Deck.Kind.DECK) is not None
+
+
+@pytest.mark.django_db
+def test_sheet_is_not_rebuilt_twice(loaded: Report) -> None:
+    """Повторное обращение отдаёт уже собранный лист."""
+    first = services.build_deck(loaded, Deck.Kind.SHEET)
+    second = services.build_deck(loaded, Deck.Kind.SHEET)
+
+    assert first.pk == second.pk

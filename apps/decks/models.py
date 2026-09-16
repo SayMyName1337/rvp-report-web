@@ -9,14 +9,26 @@ from apps.reports.models import Report, Upload
 
 
 class Deck(models.Model):
-    """Презентация, собранная по суточному рапорту.
+    """Материал доклада, собранный по суточному рапорту.
 
-    Хранится, чтобы не пересобирать одно и то же: за одни сутки её
-    скачивают несколько человек. Привязана к загрузке, из которой
-    собрана, — если рапорт прислали с исправлениями и данные заменили,
-    прежняя презентация перестаёт быть действующей и собирается заново.
+    Хранится, чтобы не пересобирать одно и то же: за одни сутки его
+    скачивают несколько человек. Привязан к загрузке, из которой
+    собран, — если рапорт прислали с исправлениями и данные заменили,
+    прежний материал перестаёт быть действующим и собирается заново.
+
+    Видов два: презентация доклада из одиннадцати слайдов и сводный
+    лист А3. Оба собираются из одного исходного файла одним разбором,
+    поэтому цифры на них совпадают по построению.
     """
 
+    class Kind(models.TextChoices):
+        """Вид материала."""
+
+        DECK = "deck", "Презентация доклада"
+        SHEET = "sheet", "Лист А3"
+
+    kind = models.CharField("Вид", max_length=10, choices=Kind.choices,
+                            default=Kind.DECK)
     report = models.ForeignKey(Report, on_delete=models.CASCADE,
                                related_name="decks", verbose_name="Сутки")
     upload = models.ForeignKey(Upload, on_delete=models.CASCADE,
@@ -30,7 +42,7 @@ class Deck(models.Model):
         verbose_name_plural = "презентации"
         ordering = ("-built_at",)
         constraints = [models.UniqueConstraint(
-            fields=("upload",), name="unique_deck_per_upload")]
+            fields=("upload", "kind"), name="unique_deck_per_upload_kind")]
 
     def __str__(self) -> str:
         """Дата рапорта, по которому собрана презентация."""
@@ -49,6 +61,7 @@ class Download(models.Model):
         """Что именно скачали."""
 
         DECK = "deck", "Презентация"
+        SHEET = "sheet", "Лист А3"
         SOURCE = "source", "Исходный рапорт"
 
     report = models.ForeignKey(Report, on_delete=models.CASCADE,

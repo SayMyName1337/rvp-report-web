@@ -27,6 +27,7 @@ from django.core.files import File
 from apps.layout.models import active_fixes
 from apps.reports.models import Report, Upload
 from rvp_report.excel.reader import ReportReader
+from rvp_report.render import sheet as sheet_render
 from rvp_report.render.slides import build
 
 from .models import Deck
@@ -39,42 +40,48 @@ PDF_TIMEOUT = 120
 SOFFICE_NAMES = ("soffice", "libreoffice")
 
 
-def deck_name(report: Report) -> str:
-    """Имя файла презентации по дате рапорта."""
+def deck_name(report: Report, kind: str = Deck.Kind.DECK) -> str:
+    """Имя файла материала по дате рапорта и его виду."""
+    if kind == Deck.Kind.SHEET:
+        return f"Суточный рапорт {report.date:%Y-%m-%d} — лист А3.pptx"
     return f"Суточный рапорт {report.date:%Y-%m-%d}.pptx"
 
 
-def current_deck(report: Report) -> Deck | None:
-    """Действующая презентация суток или None, если её надо собрать.
+def current_deck(report: Report,
+                 kind: str = Deck.Kind.DECK) -> Deck | None:
+    """Действующий материал суток или None, если его надо собрать.
 
-    Действующей считается собранная из той же загрузки, что и данные:
-    после повторной загрузки исправленного рапорта прежняя устаревает.
+    Действующим считается собранный из той же загрузки, что и данные:
+    после повторной загрузки исправленного рапорта прежний устаревает.
 
     Args:
         report: Сутки.
+        kind: Вид материала — презентация или лист А3.
 
     Returns:
-        Презентацию или None.
+        Материал или None.
     """
     upload = report.uploads.filter(is_current=True).first()
     if upload is None:
         return None
-    return Deck.objects.filter(report=report, upload=upload).first()
+    return Deck.objects.filter(report=report, upload=upload,
+                               kind=kind).first()
 
 
-def build_deck(report: Report) -> Deck:
-    """Собрать презентацию по суткам, если её ещё нет.
+def build_deck(report: Report, kind: str = Deck.Kind.DECK) -> Deck:
+    """Собрать материал по суткам, если его ещё нет.
 
     Args:
-        report: Сутки, за которые нужна презентация.
+        report: Сутки, за которые нужен материал.
+        kind: Вид материала — презентация доклада или лист А3.
 
     Returns:
-        Готовую презентацию.
+        Готовый материал.
 
     Raises:
         FileNotFoundError: Если исходный файл рапорта не сохранён.
     """
-    existing = current_deck(report)
+    existing = current_deck(report, kind)
     if existing is not None and existing.file:
         return existing
 
@@ -84,9 +91,12 @@ def build_deck(report: Report) -> Deck:
 
     daily = ReportReader(upload.file.path, fixes=active_fixes()).read()
     with tempfile.TemporaryDirectory() as folder:
-        path = Path(folder) / deck_name(report)
-        build(daily, str(path))
-        deck = Deck(report=report, upload=upload)
+        path = Path(folder) / deck_name(report, kind)
+        if kind == Deck.Kind.SHEET:
+            sheet_render.build(daily, str(path), assets_dir=folder)
+        else:
+            build(daily, str(path))
+        deck = Deck(report=report, upload=upload, kind=kind)
         with open(path, "rb") as handle:
             deck.file.save(path.name, File(handle), save=False)
         deck.save()

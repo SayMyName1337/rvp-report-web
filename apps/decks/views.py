@@ -53,6 +53,45 @@ class DeckView(LoginRequiredMixin, View):
                             filename=name, content_type=PPTX_TYPE)
 
 
+class SheetView(LoginRequiredMixin, View):
+    """Скачивание сводного листа А3.
+
+    Лист собирается из того же исходного файла тем же разбором, что
+    и презентация, поэтому цифры на них совпадают. Формат выбирается
+    параметром адреса: PowerPoint для правки перед печатью, PDF
+    для печати и пересылки.
+    """
+
+    def get(self, request, *args, **kwargs):
+        """Отдать лист в запрошенном формате."""
+        report = get_object_or_404(Report, date=kwargs["day"])
+        as_pdf = kwargs.get("fmt") == "pdf"
+        try:
+            deck = services.build_deck(report, Deck.Kind.SHEET)
+            content = (services.to_pdf(Path(deck.file.path))
+                       if as_pdf else None)
+        except FileNotFoundError:
+            messages.error(
+                request,
+                "Исходный файл рапорта за эти сутки не сохранён, "
+                "собрать лист не из чего.")
+            return redirect(reverse("reports:detail", args=[report.date]))
+        except RuntimeError as error:
+            messages.warning(request, str(error))
+            return redirect(reverse("reports:detail", args=[report.date]))
+
+        suffix = "pdf" if as_pdf else "pptx"
+        name = f"Суточный рапорт {report.date:%Y-%m-%d} — лист А3.{suffix}"
+        services.record_download(report, Download.Kind.SHEET, name,
+                                 request.user)
+        if as_pdf:
+            return FileResponse(BytesIO(content), as_attachment=True,
+                                filename=name,
+                                content_type="application/pdf")
+        return FileResponse(deck.file.open("rb"), as_attachment=True,
+                            filename=name, content_type=PPTX_TYPE)
+
+
 class PdfView(LoginRequiredMixin, View):
     """Скачивание презентации в формате PDF.
 
