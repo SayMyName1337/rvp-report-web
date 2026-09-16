@@ -52,18 +52,31 @@ class Deck:
     """
 
     def __init__(self, template: str | None = None,
-                 assets_dir: str | None = None):
+                 assets_dir: str | None = None,
+                 size: tuple[float, float] | None = None):
         """Args:
         template: Корпоративный шаблон .pptx/.potx.
         assets_dir: Каталог для кэша растрового логотипа.
+        size: Размер листа в сантиметрах. По умолчанию — размер
+            слайда доклада из :mod:`theme`. Задаётся для выдач
+            другого формата, например листа А3.
         """
         self.prs = Presentation(template) if template else Presentation()
         if template is None:
-            self.prs.slide_width = Cm(T.SLIDE_W_CM)
-            self.prs.slide_height = Cm(T.SLIDE_H_CM)
+            width, height = size or (T.SLIDE_W_CM, T.SLIDE_H_CM)
+            self.prs.slide_width = Cm(width)
+            self.prs.slide_height = Cm(height)
         self._blank = self.prs.slide_layouts[6]  # пустой макет
         self._assets = assets_dir
         self._logo_cache: dict[bool, str | None] = {}
+
+    def blank_slide(self):
+        """Добавить лист без заголовка и вернуть его.
+
+        Нужен выдачам, которые верстают лист целиком сами, — например
+        сводке на А3.
+        """
+        return self.prs.slides.add_slide(self._blank)
 
     # --- фирменный знак ------------------------------------------------------
     def logo_png(self, on_dark: bool = False) -> str | None:
@@ -259,7 +272,8 @@ class Deck:
     def kpi(self, slide, x: float, y: float, w: float, h: float,
             label: str, value: str, note: str = "",
             value_color: RGBColor = T.INK, accent: RGBColor | None = None,
-            note_color: RGBColor = T.MUTED, mark: str = ""):
+            note_color: RGBColor = T.MUTED, mark: str = "",
+            value_size=None, label_size=None):
         """Плитка «подпись — большое число — комментарий».
 
         Значение остаётся нейтральным, статус несут цветная полоса слева
@@ -274,34 +288,48 @@ class Deck:
             note_color: Цвет пояснения.
             mark: Пометка в углу плитки. Отличает расчётные величины
                 от значений, взятых из рапорта напрямую.
+            value_size: Кегль значения; None — как в теме.
+            label_size: Кегль подписи и пояснения; None — как в теме.
         """
+        value_size = value_size or T.SIZE_KPI
+        label_size = label_size or T.SIZE_KPI_LABEL
         self.rect(slide, x, y, w, h, fill=T.PANEL, rounded=True)
         if accent is not None:
             self.rect(slide, x, y, 0.14, h, fill=accent)
         if mark:
             self.write(self.textbox(slide, x + w - 2.2, y + 0.32, 1.8, 0.6),
-                       mark, size=T.SIZE_FOOTER, color=T.MUTED,
+                       mark, size=label_size, color=T.MUTED,
                        align=PP_ALIGN.RIGHT)
         pad = 0.45
         # длинная подпись переносится на вторую строку, поэтому значение
         # опускается ниже — иначе они накладываются друг на друга
         label_h = 0.95 if len(label) > T.KPI_LABEL_WRAP else 0.6
         self.write(self.textbox(slide, x + pad, y + 0.35, w - 2 * pad, label_h),
-                   label.upper(), size=T.SIZE_KPI_LABEL, color=T.MUTED,
+                   label.upper(), size=label_size, color=T.MUTED,
                    bold=True)
         self.write(self.textbox(slide, x + pad, y + 0.35 + label_h,
                                 w - 2 * pad, 1.3),
-                   value, size=T.SIZE_KPI, bold=True, color=value_color)
+                   value, size=value_size, bold=True, color=value_color)
         if note:
             self.write(self.textbox(slide, x + pad, y + h - 1.0, w - 2 * pad, 0.8),
-                       note, size=T.SIZE_KPI_LABEL, color=note_color)
+                       note, size=label_size, color=note_color)
 
     def table(self, slide, x: float, y: float, w: float,
               headers: list[str], rows: list[list], widths: list[float] | None = None,
               row_h: float = 0.72, head_h: float = 0.78,
               aligns: list | None = None,
-              cell_colors: dict[tuple[int, int], RGBColor] | None = None):
-        """Таблица. cell_colors — {(строка, столбец): цвет текста} для светофора."""
+              cell_colors: dict[tuple[int, int], RGBColor] | None = None,
+              size=None, head_size=None):
+        """Таблица.
+
+        Args:
+            cell_colors: {(строка, столбец): цвет текста} — для светофора.
+            size: Кегль ячеек; None — как в теме. Мельче задаётся там,
+                где на лист выносится больше данных, чем на слайд.
+            head_size: Кегль заголовка; None — как в теме.
+        """
+        size = size or T.SIZE_TABLE
+        head_size = head_size or T.SIZE_TABLE_HEAD
         cols = len(headers)
         height = head_h + row_h * max(len(rows), 1)
         shape = slide.shapes.add_table(len(rows) + 1, cols, Cm(x), Cm(y),
@@ -327,13 +355,13 @@ class Deck:
                 f"ширин {len(widths)}, а столбцов {cols}")
 
         for c, head in enumerate(headers):
-            self._cell(table.cell(0, c), head, bold=True, size=T.SIZE_TABLE_HEAD,
+            self._cell(table.cell(0, c), head, bold=True, size=head_size,
                        color=T.CANVAS, fill=T.BRAND, align=aligns[c])
         for r, row in enumerate(rows, start=1):
             fill = T.CANVAS if r % 2 else T.PANEL
             for c, value in enumerate(row):
                 color = (cell_colors or {}).get((r - 1, c), T.INK)
-                self._cell(table.cell(r, c), value, size=T.SIZE_TABLE,
+                self._cell(table.cell(r, c), value, size=size,
                            color=color, fill=fill, align=aligns[c])
         return shape
 
