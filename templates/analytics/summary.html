@@ -43,13 +43,15 @@
                 форме при любом числе, поэтому здесь оно просто
                 написано словом.
             {% endcomment %}
-            {% if c.complete %}
+            {% if not c.started %}
+                Период ещё не начался
+            {% elif c.complete %}
                 Данные за период полные: {{ c.present }}
                 из {{ c.expected }} суток
             {% else %}
                 Данные неполные: {{ c.present }} из {{ c.expected }} суток
             {% endif %}
-            {% if c.unfinished %}· период ещё не завершён{% endif %}
+            {% if c.started and c.unfinished %}· период ещё не завершён{% endif %}
         </div>
         {% if period.clamped %}
             <div class="gapcard__line warn">
@@ -60,7 +62,11 @@
             </div>
         {% endif %}
         <div class="gapcard__line">
-            {% if c.complete %}
+            {% if not c.started %}
+                Он начинается {{ period.start|date:"d.m.Y" }}, и данных
+                за него пока быть не может. Показатели ниже — прочерки,
+                а не нули.
+            {% elif c.complete %}
                 Суммы ниже посчитаны по всем суткам периода.
             {% else %}
                 Суммы ниже посчитаны не по всему периоду. Сравнивать их
@@ -163,7 +169,11 @@
             <h2>Добыча по суткам</h2>
             <span class="section__note">пропущенные сутки показаны разрывом</span>
         </div>
-        <div class="chart-box"><canvas id="chart-daily"></canvas></div>
+        {% if chart_daily.labels %}
+            <div class="chart-box"><canvas id="chart-daily"></canvas></div>
+        {% else %}
+            <p class="muted">За период нет ни одних суток с данными.</p>
+        {% endif %}
     </div>
 
     {# --- Потери ---------------------------------------------------------- #}
@@ -172,9 +182,14 @@
             <h2>Потери добычи за период</h2>
             <span class="section__note">величина расчётная — в рапорте её нет</span>
         </div>
+        {% if not losses.has_data %}
+            <p class="muted">За период нет данных о простое и бездействии
+                фонда: складывать нечего.</p>
+        {% else %}
         <p class="formula">{% for name, value in losses.parts %}{% if not forloop.first %}
   + {% else %}    {% endif %}{{ value|num:1 }} ({{ name }}){% endfor %}
   = {{ losses.total|num:1 }} т</p>
+        {% endif %}
         {% if losses.groups.count %}
             <p class="section__note" style="display:block;margin-top:10px">
                 Из них {{ losses.groups.qo|num:1 }} т приходится на
@@ -189,12 +204,22 @@
     <div class="columns">
         <div class="card">
             <div class="section__head"><h2>Добыча по месторождениям</h2></div>
-            <div class="chart-box chart-box--tall">
-                <canvas id="chart-fields"></canvas></div>
+            {% if chart_fields.labels %}
+                <div class="chart-box chart-box--tall">
+                    <canvas id="chart-fields"></canvas></div>
+            {% else %}
+                <p class="muted">За период нет данных о добыче
+                    по месторождениям.</p>
+            {% endif %}
         </div>
         <div class="card">
             <div class="section__head"><h2>Причины простоя</h2></div>
-            <div class="chart-box"><canvas id="chart-reasons"></canvas></div>
+            {% if chart_reasons.labels %}
+                <div class="chart-box"><canvas id="chart-reasons"></canvas></div>
+            {% else %}
+                <p class="muted">За период нет разбивки простоя
+                    по причинам.</p>
+            {% endif %}
         </div>
     </div>
 
@@ -246,9 +271,12 @@
                         <td>{{ item.label }}</td>
                         <td class="num">{{ item.plan|num:1 }}</td>
                         <td class="num">{{ item.fact|num:1 }}</td>
-                        <td class="num muted">
-                            {% if item.plan %}{{ item.fact|num:1 }}{% endif %}</td>
+                        <td class="num {{ item.dev|deviation_class }}">
+                            {{ item.dev|signed:1 }}</td>
                     </tr>
+                {% empty %}
+                    <tr><td colspan="4" class="muted">
+                        За период нет данных по газу.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>

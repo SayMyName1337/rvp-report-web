@@ -134,14 +134,22 @@ def _completeness(deck: Deck, sheet: Sheet, data: dict, y: float) -> float:
     суток они собраны. Поэтому полоса идёт до показателей, а не после.
     """
     c = data["completeness"]
-    full = c["complete"]
+    # Период, который ещё не наступил, не ожидает ни одних суток,
+    # и «пропусков нет» выходит само собой. Полным он от этого
+    # не становится: полным может быть только начавшийся период.
+    started = c.get("started", True)
+    full = c["complete"] and started
     height = 1.65
     deck.rect(sheet.slide, MARGIN, y, CONTENT_W, height,
               fill=T.PANEL if full else T.ACCENT_SOFT, rounded=True)
     deck.rect(sheet.slide, MARGIN, y, 0.12, height,
               fill=T.GOOD if full else T.WARN)
 
-    if full:
+    if not started:
+        title = "Период ещё не начался"
+        note = (f"Он начинается {data['start']:%d.%m.%Y}, и данных за него "
+                "пока быть не может. Показатели ниже — прочерки, а не нули.")
+    elif full:
         title = (f"Данные за период полные: {c['present']} "
                  f"из {c['expected']} суток")
         note = "Суммы ниже посчитаны по всем суткам периода."
@@ -149,7 +157,7 @@ def _completeness(deck: Deck, sheet: Sheet, data: dict, y: float) -> float:
         title = (f"Данные неполные: {c['present']} из {c['expected']} суток")
         note = ("Суммы ниже посчитаны не по всему периоду. Сравнивать их "
                 "с другими периодами напрямую нельзя.")
-    if c.get("unfinished"):
+    if started and c.get("unfinished"):
         title += " · период ещё не завершён"
     if c.get("needs_review"):
         note += (f" Суток с неподтверждёнными показателями: "
@@ -187,7 +195,10 @@ def _tiles(sheet: Sheet, data: dict, y: float) -> float:
     """Шесть итогов периода."""
     p = data["production"]
     losses = data["losses"]
-    share = (losses["total"] / p["closed"] * 100) if p.get("closed") else None
+    # Доля считается, только если есть обе величины: у периода
+    # без данных итог потерь — прочерк, а не ноль.
+    share = (losses["total"] / p["closed"] * 100
+             if p.get("closed") and losses.get("total") else None)
 
     tiles = [
         {"label": "Добыча нефти за период, т", "value": num(p.get("closed")),

@@ -182,15 +182,17 @@ def _losses(report: Report) -> dict:
         ("Бездействие", totals.get(WellTotals.Category.IDLE, 0.0)),
         ("Внутрисменные", totals.get(WellTotals.Category.VSP, 0.0)),
     ]
-    total = sum(value for _name, value in parts)
+    # Пустой блок фонда — это «нет данных», а не «потерь не было»:
+    # за сутки без единой строки итог не ноль, а прочерк.
+    total = sum(value for _name, value in parts) if totals else None
     # Блок добычи у суток может отсутствовать: строку Report заводят
     # и вручную через панель управления. Обращение к недостающей
     # связи «один к одному» бросает исключение, а не отдаёт None,
     # и карточка таких суток отвечала ошибкой сервера.
     production = getattr(report, "production", None)
     closed = getattr(production, "closed_day", None)
-    return {"parts": parts, "total": total,
-            "share": (total / closed * 100) if closed else None}
+    return {"parts": parts, "total": total, "has_data": bool(totals),
+            "share": (total / closed * 100) if closed and total else None}
 
 
 class ReportSourcesView(LoginRequiredMixin, TemplateView):

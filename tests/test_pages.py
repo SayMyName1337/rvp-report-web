@@ -177,3 +177,19 @@ def test_sample_files_exist() -> None:
     if not files:
         pytest.skip("каталог с рапортами не задан")
     assert files[0].suffix == ".xlsx"
+
+
+@pytest.mark.django_db
+def test_day_without_fund_data_shows_a_dash_not_zero(client, viewer) -> None:
+    """Сутки без блока фонда показывают прочерк, а не нулевые потери.
+
+    Ноль утверждает, что потерь не было; отсутствие строк говорит лишь
+    о том, что данных нет. Путать эти два состояния нельзя.
+    """
+    report = Report.objects.create(date=date(2026, 3, 3))
+
+    page = client.get(reverse("reports:detail", args=[report.date]))
+    assert page.status_code == 200
+    text = page.content.decode()
+    assert "складывать нечего" in text
+    assert "= 0,000 т/сут" not in text

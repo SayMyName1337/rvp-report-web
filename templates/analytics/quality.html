@@ -36,10 +36,16 @@
             <div class="tile__value">{{ issues.warnings|num:0 }}</div>
             <div class="tile__note">ошибок {{ issues.errors|num:0 }}</div>
         </div>
-        <div class="tile {% if completeness.complete %}tile--good{% else %}tile--warn{% endif %}">
+        <div class="tile {% if completeness.complete %}tile--good{% elif completeness.started %}tile--warn{% endif %}">
             <div class="tile__label">Полнота данных</div>
             <div class="tile__value">{{ completeness.present }}</div>
-            <div class="tile__note">из {{ completeness.expected }} суток периода</div>
+            <div class="tile__note">
+                {% if completeness.started %}
+                    из {{ completeness.expected }} суток периода
+                {% else %}
+                    период ещё не начался
+                {% endif %}
+            </div>
         </div>
         <div class="tile {% if completeness.needs_review %}tile--warn{% endif %}">
             <div class="tile__label">Требуют подтверждения</div>
@@ -133,7 +139,14 @@
     <div class="card">
         <div class="card__title">Сутки без данных</div>
         <div class="coverage__days">
-            {% for day in completeness.missing %}<code>{{ day|date:"d.m.Y" }}</code>{% if not forloop.last %} {% endif %}{% endfor %}
+            {% if completeness.many_missing and completeness.first %}
+                Данные есть с {{ completeness.first|date:"d.m.Y" }}
+                по {{ completeness.last|date:"d.m.Y" }}. Суток с данными:
+                {{ completeness.present }},
+                пропущено: {{ completeness.missing|length }}.
+            {% else %}
+                {% for day in completeness.missing %}<code>{{ day|date:"d.m.Y" }}</code>{% if not forloop.last %} {% endif %}{% endfor %}
+            {% endif %}
         </div>
     </div>
     {% endif %}

@@ -171,7 +171,13 @@ class SummaryView(LoginRequiredMixin, TemplateView):
         """
         by_day = {row["date"]: row for row in data["series"]}
         period = data["period"]
-        last = min(period.end, data["completeness"]["last"] or period.end)
+        # Нет ни одних суток с данными — нет и ряда. Иначе у периода,
+        # который ещё не начался, выходила сетка на тридцать одно
+        # пустое деление: график без единой точки, но с виду
+        # настоящий.
+        if not data["completeness"]["last"]:
+            return {"labels": [], "fact": [], "plan": []}
+        last = min(period.end, data["completeness"]["last"])
 
         labels, fact, plan = [], [], []
         day = period.start

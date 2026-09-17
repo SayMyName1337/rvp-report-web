@@ -76,6 +76,11 @@ def _pages(report: Report) -> list[str]:
                      f"&on={report.date:%Y-%m-%d}")
     pages.append(f"{reverse('analytics:summary')}"
                  f"?start=2026-08-01&end=2026-08-31")
+    # Периоды, которых ещё не было. Такие страницы открывают, просто
+    # пролистав вперёд, и данных на них нет ни при каких условиях.
+    for kind in ("month", "quarter", "half", "year"):
+        pages.append(f"{reverse('analytics:summary')}?kind={kind}&on=2099-01-01")
+    pages.append(f"{reverse('analytics:quality')}?kind=month&on=2099-01-01")
     return pages
 
 

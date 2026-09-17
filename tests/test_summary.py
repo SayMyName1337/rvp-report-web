@@ -420,3 +420,143 @@ def test_short_gap_list_names_the_days(client) -> None:
                       {"kind": "month", "on": "2026-08-01"}).content.decode()
     assert "Нет данных за:" in page
     assert "07.08" in page and "19.08" in page
+
+
+# --- период, который ещё не наступил -----------------------------------------
+@pytest.mark.django_db
+def test_future_period_is_not_complete() -> None:
+    """Будущий период полным не считается.
+
+    Ни одних суток такого периода ещё не ожидается, пропусков поэтому
+    нет, и «полнота» получалась сама собой: сводка за будущий квартал
+    объявляла себя полной. Полным может быть только начавшийся период.
+    """
+    result = summary.completeness(periods.period_of("month",
+                                                    date(2026, 10, 1)),
+                                  today=date(2026, 9, 17))
+
+    assert result["started"] is False
+    assert result["complete"] is False
+    assert result["expected"] == 0 and result["present"] == 0
+
+
+@pytest.mark.django_db
+def test_past_period_without_data_is_incomplete() -> None:
+    """Прошедший период без данных неполон, а не «не начался».
+
+    Разница существенная: за январь данные могли быть и не загружены,
+    а за будущий октябрь их не может быть в принципе.
+    """
+    result = summary.completeness(periods.period_of("month",
+                                                    date(2026, 1, 1)),
+                                  today=date(2026, 9, 17))
+
+    assert result["started"] is True
+    assert result["complete"] is False
+    assert result["expected"] == 31 and result["present"] == 0
+
+
+@pytest.mark.django_db
+def test_future_period_page_says_it_has_not_started(client) -> None:
+    """Страница будущего периода говорит, что он не начался."""
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
+    client.force_login(user)
+
+    page = client.get(reverse("analytics:summary"),
+                      {"kind": "month", "on": "2026-12-01"}).content.decode()
+
+    assert "Период ещё не начался" in page
+    assert "Данные за период полные" not in page
+
+
+@pytest.mark.django_db
+def test_losses_without_data_are_a_dash(client) -> None:
+    """Потери за период без данных — прочерк, а не ноль.
+
+    «Нет данных» и «ноль» — разные вещи: ноль утверждает, что потерь
+    не было, хотя суток не было вовсе.
+    """
+    period = periods.period_of("month", date(2026, 12, 1))
+    result = summary.losses(period)
+
+    assert result["total"] is None
+    assert result["has_data"] is False
+
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
+    client.force_login(user)
+    page = client.get(reverse("analytics:summary"),
+                      {"kind": "month", "on": "2026-12-01"}).content.decode()
+    assert "складывать нечего" in page
+
+
+@pytest.mark.django_db
+def test_empty_period_draws_no_chart(client) -> None:
+    """У периода без данных не рисуется пустая сетка графика.
+
+    График без единой точки, но с виду настоящий, — хуже отсутствия
+    графика: он выглядит как утверждение о нулях.
+    """
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
+    client.force_login(user)
+
+    page = client.get(reverse("analytics:summary"),
+                      {"kind": "month", "on": "2026-12-01"}).content.decode()
+
+    assert 'id="chart-daily"' not in page
+    assert "нет ни одних суток с данными" in page
+
+
+@pytest.mark.django_db
+def test_quality_page_does_not_call_a_future_period_complete(client) -> None:
+    """Страница качества данных тоже не считает будущий период полным."""
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
+    client.force_login(user)
+
+    page = " ".join(client.get(
+        reverse("analytics:quality"),
+        {"kind": "month", "on": "2026-12-01"}).content.decode().split())
+
+    assert "период ещё не начался" in page
+    # Плитка полноты не должна быть зелёной. Ищется именно она:
+    # зелёные плитки на странице есть и по другим поводам.
+    start = page.index("Полнота данных")
+    tile = page[page.rindex("<div class=\"tile", 0, start):start]
+    assert "tile--good" not in tile, "полнота отмечена как благополучная"
+
+
+@pytest.mark.django_db
+def test_gas_deviation_is_a_difference_not_the_fact() -> None:
+    """В столбце «±» баланса газа стоит отклонение, а не сам факт.
+
+    Шаблон выводил в этот столбец повторно факт: под заголовком «±»
+    читателю показывалось то же число, что и в соседней графе.
+    """
+    from apps.reports.models import GasDaily
+
+    report = _day(1)
+    GasDaily.objects.create(report=report, kind=GasDaily.Kind.PRODUCTION,
+                            day_plan=400.0, day_fact=412.5)
+
+    row = summary.gas(periods.period_of("month", date(2026, 8, 1)))[0]
+
+    assert row["fact"] == pytest.approx(412.5)
+    assert row["plan"] == pytest.approx(400.0)
+    assert row["dev"] == pytest.approx(12.5)
+
+
+@pytest.mark.django_db
+def test_gas_deviation_without_plan_is_empty() -> None:
+    """Без плана отклонение не выдумывается."""
+    from apps.reports.models import GasDaily
+
+    report = _day(1)
+    GasDaily.objects.create(report=report, kind=GasDaily.Kind.FLARE,
+                            day_plan=None, day_fact=17.0)
+
+    row = summary.gas(periods.period_of("month", date(2026, 8, 1)))[0]
+
+    assert row["dev"] is None

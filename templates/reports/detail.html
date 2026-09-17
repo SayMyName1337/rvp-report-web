@@ -101,9 +101,14 @@
             <h2>Потери добычи</h2>
             <span class="section__note">величина расчётная — в рапорте её нет</span>
         </div>
+        {% if losses.has_data %}
         <p class="formula">{% for name, value in losses.parts %}{% if not forloop.first %}
   + {% else %}    {% endif %}{{ value|num:3 }} ({{ name }}){% endfor %}
   = {{ losses.total|num:3 }} т/сут</p>
+        {% else %}
+        <p class="muted">За эти сутки нет данных о простое и бездействии
+            фонда: складывать нечего.</p>
+        {% endif %}
 
         <div class="columns" style="margin-top:16px">
             <div>

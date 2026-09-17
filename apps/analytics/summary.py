@@ -46,8 +46,8 @@ def completeness(period: Period, today: date | None = None) -> dict:
         today: Текущая дата; за будущие сутки данных быть не может.
 
     Returns:
-        Сколько суток ожидалось, сколько есть, какие пропущены и сколько
-        суток требуют подтверждения.
+        Сколько суток ожидалось, сколько есть, какие пропущены, сколько
+        суток требуют подтверждения и начался ли период вообще.
     """
     # Именно localdate, а не date.today(): часы контейнера идут по UTC,
     # а сутки рапорта — московские. С полуночи до трёх ночи по Москве
@@ -81,7 +81,12 @@ def completeness(period: Period, today: date | None = None) -> dict:
         # в шаблоне и не в сборщике листа: и страница, и лист А3
         # должны говорить о полноте данных одинаково.
         "many_missing": len(missing) > MAX_LISTED_DAYS,
-        "complete": not missing,
+        # Начался ли период. У периода, который ещё не наступил,
+        # не ожидается ни одних суток, и «нет пропусков» получается
+        # само собой — отчего сводка за будущий квартал объявляла себя
+        # полной. Полным период может быть только начавшийся.
+        "started": bool(expected),
+        "complete": bool(expected) and not missing,
         "unfinished": period.end > last,
         "needs_review": needs_review,
         "first": present[0] if present else None,
@@ -152,7 +157,10 @@ def losses(period: Period) -> dict:
     return {
         "parts": [(WellTotals.Category(key).label, by_kind.get(key, 0.0))
                   for key in Report.LOSS_CATEGORIES],
-        "total": sum(by_kind.values()),
+        # Ни одной строки — это «нет данных», а не «потерь не было»:
+        # за период без единого рапорта итог не ноль, а прочерк.
+        "has_data": bool(by_kind),
+        "total": sum(by_kind.values()) if by_kind else None,
         "groups": (GroupEvent.objects
                    .filter(report__date__range=(period.start, period.end))
                    .aggregate(qo=Sum("qo"), count=Count("id"))),
@@ -206,10 +214,23 @@ def gas(period: Period) -> list[dict]:
     order = [GasDaily.Kind.PRODUCTION, GasDaily.Kind.UTILIZATION,
              GasDaily.Kind.FLARE]
     found = {row["kind"]: row for row in rows}
-    return [{"label": GasDaily.Kind(kind).label,
-             "fact": found.get(kind, {}).get("fact"),
-             "plan": found.get(kind, {}).get("plan")}
-            for kind in order if kind in found]
+    result = []
+    for kind in order:
+        if kind not in found:
+            continue
+        fact = found[kind].get("fact")
+        plan = found[kind].get("plan")
+        result.append({
+            "label": GasDaily.Kind(kind).label,
+            "fact": fact,
+            "plan": plan,
+            # Отклонение считается здесь: в шаблоне вычесть одно
+            # вещественное число из другого нечем, и в столбце «±»
+            # повторно выводился факт.
+            "dev": (fact - plan) if fact is not None and plan is not None
+            else None,
+        })
+    return result
 
 
 def injection(period: Period) -> dict:

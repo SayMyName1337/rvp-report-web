@@ -288,3 +288,43 @@ def test_empty_period_is_stated_plainly(tmp_path) -> None:
                      for shape in Presentation(str(output)).slides[0].shapes
                      if shape.has_text_frame)
     assert "За период нет данных." in text
+
+
+def test_sheet_of_a_future_period_says_it_has_not_started(tmp_path) -> None:
+    """Лист за будущий период не объявляет данные полными.
+
+    Ни одних суток такого периода не ожидается, пропусков поэтому нет,
+    и «полнота» получалась сама собой — на листе, который уходит
+    файлом и живёт отдельно от системы.
+    """
+    data = _data(start=date(2026, 12, 1), end=date(2026, 12, 31), days=0,
+                 title="Декабрь 2026")
+    data["completeness"].update({"expected": 0, "present": 0, "missing": [],
+                                 "complete": False, "started": False,
+                                 "first": None, "last": None})
+    data["losses"]["total"] = None
+    data["production"] = {key: None for key in data["production"]}
+
+    output = tmp_path / "будущее.pptx"
+    period_sheet.build(data, str(output))
+
+    text = "\n".join(shape.text_frame.text
+                     for shape in Presentation(str(output)).slides[0].shapes
+                     if shape.has_text_frame)
+    assert "Период ещё не начался" in text
+    assert "Данные за период полные" not in text
+
+
+def test_share_survives_losses_without_data(tmp_path) -> None:
+    """Доля потерь не считается, когда потерь нет как величины.
+
+    Добыча за период может быть известна, а разбивки фонда — нет:
+    деление на этом месте роняло сборку листа.
+    """
+    data = _data()
+    data["losses"]["total"] = None
+
+    output = tmp_path / "без-потерь.pptx"
+    period_sheet.build(data, str(output))
+
+    assert output.exists()
