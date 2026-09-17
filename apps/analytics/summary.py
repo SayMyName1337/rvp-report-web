@@ -31,6 +31,12 @@ TOP_ROWS = 10
 #: о нём стоит говорить, доли от итога.
 CUMULATIVE_TOLERANCE = 0.005
 
+#: До какого числа пропущенные сутки перечисляются поимённо. Перечень
+#: полезен, пока пропусков немного: «нет данных за 07.08, 08.08, 19.08»
+#: — это указание, что проверить. Две сотни дат за год ничего
+#: не проясняют и занимают пол-экрана.
+MAX_LISTED_DAYS = 20
+
 
 def completeness(period: Period, today: date | None = None) -> dict:
     """Полнота данных за период.
@@ -71,6 +77,10 @@ def completeness(period: Period, today: date | None = None) -> dict:
         "expected": len(expected),
         "present": len(present),
         "missing": missing,
+        # Перечислять ли пропуски поимённо. Решается здесь, а не
+        # в шаблоне и не в сборщике листа: и страница, и лист А3
+        # должны говорить о полноте данных одинаково.
+        "many_missing": len(missing) > MAX_LISTED_DAYS,
         "complete": not missing,
         "unfinished": period.end > last,
         "needs_review": needs_review,

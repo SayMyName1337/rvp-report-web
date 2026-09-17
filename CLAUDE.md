@@ -76,6 +76,7 @@ python manage.py crosscheck                        # сверка с сосед�
 
 ```bash
 python -m pycodestyle apps config tests rvp_report manage.py
+python -m pyflakes apps config tests rvp_report manage.py
 python -m pytest tests -q --ignore=tests/test_parsing.py   # быстрые
 python -m pytest tests/test_parsing.py -q                  # на 31 рапорте
 ```

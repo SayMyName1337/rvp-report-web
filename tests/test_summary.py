@@ -381,3 +381,42 @@ def test_days_are_counted_with_a_noun(client) -> None:
     page = client.get(reverse("analytics:summary"),
                       {"kind": "month", "on": "2026-08-01"}).content.decode()
     assert "из 31 суток" in page, "существительное со счётом пропало"
+
+
+@pytest.mark.django_db
+def test_long_gap_lists_are_replaced_by_a_summary(client) -> None:
+    """Сотни пропущенных суток не перечисляются поимённо.
+
+    Перечень полезен, пока пропусков немного: «нет данных за 07.08,
+    08.08, 19.08» — это указание, что проверить. Две сотни дат за год
+    ничего не проясняют и занимают пол-экрана.
+    """
+    for day in range(1, 32):
+        _day(day)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
+    client.force_login(user)
+
+    # Переносы строк в разметке значения не имеют: сравнивается текст.
+    page = " ".join(client.get(
+        reverse("analytics:summary"),
+        {"kind": "year", "on": "2026-08-01"}).content.decode().split())
+    assert "Данные есть с 01.08.2026 по 31.08.2026" in page
+    assert "Нет данных за:" not in page, "перечень дат остался"
+
+
+@pytest.mark.django_db
+def test_short_gap_list_names_the_days(client) -> None:
+    """Несколько пропусков по-прежнему называются поимённо."""
+    for day in range(1, 32):
+        if day in (7, 8, 19):
+            continue
+        _day(day)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
+    client.force_login(user)
+
+    page = client.get(reverse("analytics:summary"),
+                      {"kind": "month", "on": "2026-08-01"}).content.decode()
+    assert "Нет данных за:" in page
+    assert "07.08" in page and "19.08" in page

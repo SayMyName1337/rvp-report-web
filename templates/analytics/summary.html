@@ -38,8 +38,11 @@
     {% with c=completeness %}
     <div class="coverage {% if not c.complete %}coverage--partial{% endif %}">
         <div class="coverage__title">
-            {# После «из» существительное стоит в одной и той же форме
-               при любом числе, поэтому здесь оно просто написано. #}
+            {% comment %}
+                После «из» существительное стоит в одной и той же
+                форме при любом числе, поэтому здесь оно просто
+                написано словом.
+            {% endcomment %}
             {% if c.complete %}
                 Данные за период полные: {{ c.present }}
                 из {{ c.expected }} суток
@@ -70,8 +73,14 @@
         </div>
         {% if c.missing %}
             <div class="coverage__days">
-                Нет данных за:
-                {% for day in c.missing %}<code>{{ day|date:"d.m" }}</code>{% if not forloop.last %} {% endif %}{% endfor %}
+                {% if c.many_missing and c.first %}
+                    Данные есть с {{ c.first|date:"d.m.Y" }}
+                    по {{ c.last|date:"d.m.Y" }}. Суток с данными:
+                    {{ c.present }}, пропущено: {{ c.missing|length }}.
+                {% else %}
+                    Нет данных за:
+                    {% for day in c.missing %}<code>{{ day|date:"d.m" }}</code>{% if not forloop.last %} {% endif %}{% endfor %}
+                {% endif %}
             </div>
         {% endif %}
     </div>

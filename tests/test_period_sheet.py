@@ -57,6 +57,7 @@ def _data(start: date = date(2026, 8, 1), end: date = date(2026, 8, 31),
         "clamped": False,
         "completeness": {
             "expected": expected, "present": present, "missing": missing,
+            "many_missing": len(missing) > 20,
             "complete": not missing, "unfinished": end > date(2026, 9, 8),
             "needs_review": 0,
             "first": rows[0]["date"] if rows else None,

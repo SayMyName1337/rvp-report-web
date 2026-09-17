@@ -183,7 +183,12 @@ def _losses(report: Report) -> dict:
         ("Внутрисменные", totals.get(WellTotals.Category.VSP, 0.0)),
     ]
     total = sum(value for _name, value in parts)
-    closed = getattr(report.production, "closed_day", None)
+    # Блок добычи у суток может отсутствовать: строку Report заводят
+    # и вручную через панель управления. Обращение к недостающей
+    # связи «один к одному» бросает исключение, а не отдаёт None,
+    # и карточка таких суток отвечала ошибкой сервера.
+    production = getattr(report, "production", None)
+    closed = getattr(production, "closed_day", None)
     return {"parts": parts, "total": total,
             "share": (total / closed * 100) if closed else None}
 

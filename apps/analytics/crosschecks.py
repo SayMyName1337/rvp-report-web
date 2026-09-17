@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from statistics import median
 
-from apps.reports.models import Report, WellTotals
+from apps.reports.models import Report
 
 #: Сколько прошлых суток берётся за «привычный уровень».
 HISTORY_DAYS = 14
