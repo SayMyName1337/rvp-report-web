@@ -362,3 +362,22 @@ def test_sheet_without_libreoffice_says_so(client) -> None:
 
     assert response.status_code == 200
     assert "LibreOffice не найден" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_days_are_counted_with_a_noun(client) -> None:
+    """Рядом с числом суток стоит само слово «суток».
+
+    Встроенный фильтр ``pluralize`` рассчитан на два варианта, а при
+    трёх, как в русском, молча возвращал пустую строку: страница
+    выводила «31 из 31» без существительного.
+    """
+    for day in range(1, 32):
+        _day(day)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
+    client.force_login(user)
+
+    page = client.get(reverse("analytics:summary"),
+                      {"kind": "month", "on": "2026-08-01"}).content.decode()
+    assert "из 31 суток" in page, "существительное со счётом пропало"

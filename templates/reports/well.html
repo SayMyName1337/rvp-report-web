@@ -28,14 +28,14 @@
             <div class="tile__label">Потери за всё время, т</div>
             <div class="tile__value">{{ totals.qo|num:1 }}</div>
             <div class="tile__note">за {{ totals.days }}
-                {{ totals.days|pluralize:"сутки,суток,суток" }} в списках</div>
+                {{ totals.days|plural:"сутки,суток,суток" }} в списках</div>
         </div>
         {% for item in totals.by_category %}
             <div class="tile">
                 <div class="tile__label">{{ item.label }}</div>
                 <div class="tile__value">{{ item.qo|num:1 }}</div>
                 <div class="tile__note">{{ item.days }}
-                    {{ item.days|pluralize:"сутки,суток,суток" }}</div>
+                    {{ item.days|plural:"сутки,суток,суток" }}</div>
             </div>
         {% endfor %}
     </div>

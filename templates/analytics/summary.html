@@ -38,12 +38,13 @@
     {% with c=completeness %}
     <div class="coverage {% if not c.complete %}coverage--partial{% endif %}">
         <div class="coverage__title">
+            {# После «из» существительное стоит в одной и той же форме
+               при любом числе, поэтому здесь оно просто написано. #}
             {% if c.complete %}
                 Данные за период полные: {{ c.present }}
-                {{ c.present|pluralize:"сутки,суток,суток" }} из {{ c.expected }}
+                из {{ c.expected }} суток
             {% else %}
-                Данные неполные: {{ c.present }} из {{ c.expected }}
-                {{ c.expected|pluralize:"суток,суток,суток" }}
+                Данные неполные: {{ c.present }} из {{ c.expected }} суток
             {% endif %}
             {% if c.unfinished %}· период ещё не завершён{% endif %}
         </div>
@@ -169,7 +170,7 @@
             <p class="section__note" style="display:block;margin-top:10px">
                 Из них {{ losses.groups.qo|num:1 }} т приходится на
                 {{ losses.groups.count }}
-                {{ losses.groups.count|pluralize:"групповое событие,групповых события,групповых событий" }} —
+                {{ losses.groups.count|plural:"групповое событие,групповых события,групповых событий" }} —
                 строки рапорта, относящиеся сразу к нескольким скважинам.
                 По конкретным скважинам они не разнесены.
             </p>

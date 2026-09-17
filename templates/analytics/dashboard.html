@@ -55,7 +55,7 @@
     <p class="page__subtitle">
         Последние сутки — {{ latest.date|date:"d.m.Y" }},
         {{ latest.temperature|num:0 }} °C, ветер {{ latest.wind|default:"—" }}.
-        Всего в базе {{ total }} {{ total|pluralize:"сутки,суток,суток" }}.
+        Всего в базе {{ total }} {{ total|plural:"сутки,суток,суток" }}.
     </p>
 
     {# --- Последние сутки ------------------------------------------------- #}

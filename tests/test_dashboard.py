@@ -170,3 +170,21 @@ def test_page_works_without_reports(client) -> None:
     response = client.get(reverse("analytics:dashboard"))
     assert response.status_code == 200
     assert "не загружено" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_day_count_carries_its_noun(client) -> None:
+    """Число суток в базе выводится вместе с существительным.
+
+    Встроенный фильтр ``pluralize`` рассчитан на два варианта, а при
+    трёх, как в русском, молча возвращал пустую строку: подзаголовок
+    дашборда выводил «Всего в базе 21 .» — слово пропадало вовсе.
+    """
+    for offset in range(21):
+        make_day(offset)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
+    client.force_login(user)
+
+    page = client.get(reverse("analytics:dashboard")).content.decode()
+    assert "Всего в базе 21 сутки." in page

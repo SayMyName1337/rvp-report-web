@@ -11,7 +11,7 @@ from django.urls import reverse
 from apps.accounts.models import User
 from apps.reports.loader import store
 from apps.reports.models import Report
-from apps.reports.templatetags.rvp import num, share, signed
+from apps.reports.templatetags.rvp import num, plural, share, signed
 
 from .conftest import load, report_files
 
@@ -62,6 +62,28 @@ def test_share_of_zero_total_is_a_dash() -> None:
     """Доля от нуля — не ноль процентов, а отсутствие значения."""
     assert share(10, 0) == "—"
     assert share(None, 100) == "—"
+
+
+@pytest.mark.parametrize("count,expected", [
+    (1, "сутки"), (2, "суток"), (4, "суток"), (5, "суток"),
+    (11, "суток"), (12, "суток"), (14, "суток"),
+    (21, "сутки"), (22, "суток"), (31, "сутки"), (0, "суток"),
+])
+def test_word_agrees_with_the_number(count: int, expected: str) -> None:
+    """Существительное согласуется с числом.
+
+    Встроенный фильтр ``pluralize`` рассчитан на два варианта и при
+    трёх молча возвращал пустую строку: на страницах выходило
+    «Всего в базе 33 .» — слово со счётом пропадало вовсе.
+    """
+    assert plural(count, "сутки,суток,суток") == expected
+
+
+def test_word_form_survives_bad_input() -> None:
+    """Неожиданное значение не роняет страницу."""
+    assert plural(None, "сутки,суток,суток") == "суток"
+    assert plural("", "сутки,суток,суток") == "суток"
+    assert plural(3, "сутки,суток") == "", "принято неверное число форм"
 
 
 # --- страницы ----------------------------------------------------------------
