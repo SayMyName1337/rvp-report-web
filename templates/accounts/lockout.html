@@ -1,0 +1,33 @@
+{% load static rvp %}<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Вход закрыт — суточный рапорт</title>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    <link rel="icon" href="{% static 'img/rvp-blob.svg' %}">
+</head>
+<body class="login">
+<div class="login__card">
+    <img class="login__logo" src="{% static 'img/rvp-logo.svg' %}"
+         alt="Русвьетпетро">
+    <h1 class="login__title">Вход временно закрыт</h1>
+
+    <div class="errors">
+        Пароль введён неверно {{ limit }}
+        {{ limit|plural:"раз,раза,раз" }} подряд.
+    </div>
+
+    <p class="login__hint">
+        Вход для этой учётной записи с этого компьютера закрыт
+        на {{ minutes }} {{ minutes|plural:"минуту,минуты,минут" }}.
+        Повторные попытки в это время срок не продлевают, но и не
+        открывают вход раньше.
+    </p>
+    <p class="login__hint">
+        Если пароль забыт, ждать не нужно: администратор системы
+        назначит новый и снимет блокировку.
+    </p>
+</div>
+</body>
+</html>

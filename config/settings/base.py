@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -63,7 +64,9 @@ DJANGO_APPS = [
     "django.contrib.humanize",
 ]
 
-THIRD_PARTY_APPS: list[str] = []
+THIRD_PARTY_APPS: list[str] = [
+    "axes",     # учёт неудачных попыток входа и блокировка перебора
+]
 
 LOCAL_APPS = [
     "apps.accounts",
@@ -90,6 +93,9 @@ MIDDLEWARE = [
     "apps.accounts.middleware.PasswordChangeRequired",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Последним: обработчик перехватывает ответ формы входа и подменяет
+    # его страницей блокировки, когда попытки исчерпаны.
+    "axes.middleware.AxesMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -143,6 +149,61 @@ AUTH_PASSWORD_VALIDATORS = [
              "CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
+
+# --- Защита от перебора паролей ----------------------------------------------
+# Проверку попыток выполняет отдельный обработчик, и он обязан стоять
+# в списке первым: иначе обычный обработчик успеет подтвердить пароль
+# до того, как будет учтена блокировка.
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+
+#: Сколько неудачных попыток допускается до блокировки.
+AXES_FAILURE_LIMIT = int(env("AXES_FAILURE_LIMIT", "5"))
+
+#: На сколько минут закрывается вход после исчерпания попыток.
+AXES_COOLOFF_MINUTES = int(env("AXES_COOLOFF_MINUTES", "15"))
+AXES_COOLOFF_TIME = timedelta(minutes=AXES_COOLOFF_MINUTES)
+
+# Блокируется сочетание «учётная запись + адрес», а не то и другое
+# по отдельности. Все работники выходят в сеть через один внешний
+# адрес предприятия: блокировка по адресу закрыла бы вход всему
+# отделу из-за одной чужой опечатки. Блокировка по одному имени
+# позволяла бы кому угодно закрыть вход начальнику ЦИТУ перед
+# докладом, пять раз ошибившись за него. Сочетание закрывает
+# настоящий перебор — подбор пароля к записи с одного адреса —
+# и не даёт ни того, ни другого побочного действия.
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
+
+# Удачный вход обнуляет счётчик: иначе редкие опечатки за неделю
+# складывались бы в блокировку на ровном месте.
+AXES_RESET_ON_SUCCESS = True
+
+# Попытки во время блокировки её не продлевают. Срок снятия должен
+# быть предсказуем: доклад в 09:00, и человек, который в 08:50
+# несколько раз нажал «Войти», обязан знать, когда сможет войти.
+# Защите это не вредит — за срок блокировки всё равно даётся
+# не больше AXES_FAILURE_LIMIT попыток.
+AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = False
+
+# Каждая неудачная попытка записывается отдельно: администратору
+# нужен не только счётчик, но и картина — когда и с каких адресов
+# подбирали пароль.
+AXES_ENABLE_ACCESS_FAILURE_LOG = True
+
+#: Ответ на попытку входа при действующей блокировке.
+AXES_LOCKOUT_CALLABLE = "apps.accounts.views.lockout"
+AXES_HTTP_RESPONSE_CODE = 429
+
+# Адрес обратившегося приложение берёт из заголовка, который
+# подставляет nginx; без прокси — из самого соединения. Подробности —
+# в config/ip.py.
+AXES_CLIENT_IP_CALLABLE = "config.ip.client_address"
+
+#: Доверять ли заголовку с адресом клиента. Истина — только там,
+#: где перед приложением заведомо стоит обратный прокси.
+TRUST_PROXY_CLIENT_IP = False
 
 # --- Локализация -------------------------------------------------------------
 LANGUAGE_CODE = "ru-ru"

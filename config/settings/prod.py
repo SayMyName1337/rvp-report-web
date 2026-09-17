@@ -22,6 +22,12 @@ CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 
 # Приложение работает за nginx, который завершает TLS.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Обращения приходят только через nginx, поэтому адрес обратившегося
+# берётся из заголовка, который тот подставляет. Без этого адресом
+# каждого обращения был бы адрес контейнера прокси — один и тот же
+# для всех, и учёт попыток входа по адресу потерял бы смысл.
+TRUST_PROXY_CLIENT_IP = True
 SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", True)
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
