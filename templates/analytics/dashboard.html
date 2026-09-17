@@ -173,7 +173,7 @@
                         <td class="num muted">—</td></tr>
                     <tr><td>Отклонение от БП, т</td>
                         <td class="num {{ m.dev_bp|deviation_class }}">
-                            {{ m.dev_bp|signed:0 }}</td>
+                            {{ m.dev_bp|signed:1 }}</td>
                         <td class="num muted">—</td></tr>
                     <tr><td>Потери добычи, т</td>
                         <td class="num">{{ losses.total|num:0 }}</td>

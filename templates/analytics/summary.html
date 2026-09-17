@@ -103,7 +103,7 @@
         <div class="tile {% if p.dev_bp >= 0 %}tile--good{% else %}tile--bad{% endif %}">
             <div class="tile__label">К бизнес-плану, т</div>
             <div class="tile__value {{ p.dev_bp|deviation_class }}">
-                {{ p.dev_bp|signed:0 }}</div>
+                {{ p.dev_bp|signed:1 }}</div>
             <div class="tile__note">план БП {{ p.plan_bp|num:0 }}</div>
         </div>
         <div class="tile tile--bad">
