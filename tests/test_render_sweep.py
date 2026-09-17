@@ -184,3 +184,42 @@ def test_day_without_data_does_not_break_its_card(client, admin: User) -> None:
     page = _visible(response.content.decode())
     for marker in MARKERS:
         assert marker not in page
+
+
+#: Негодные значения параметров адреса. Такое приходит не от человека,
+#: а от сканера безопасности или из ошибочной ссылки, но отвечать
+#: на это система обязана страницей, а не ошибкой сервера.
+JUNK = [
+    "/reports/wells/?q=%00",
+    "/reports/wells/?q=abc%00def",
+    "/reports/wells/?q=" + "я" * 4000,
+    "/reports/wells/?field=99999999999999999999999",
+    "/reports/wells/?field=-1",
+    "/reports/wells/?field=abc",
+    "/summary/?kind=выдумка&on=2026-08-01",
+    "/summary/?on=не-дата",
+    "/summary/?start=2026-08-31&end=2026-08-01",
+    "/summary/?start=0001-01-01&end=9999-12-31",
+    "/quality/?start=2026-13-40&end=2026-08-01",
+    "/summary/sheet/выдумка/?kind=month&on=2026-08-01",
+]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("url", JUNK)
+def test_junk_parameters_do_not_break_pages(client, admin: User,
+                                            url: str) -> None:
+    """Негодный параметр адреса даёт страницу, а не ошибку сервера.
+
+    Параметры адреса приходят в представление, минуя форму, и потому
+    минуя проверки Django. Нулевой байт в строке поиска по скважинам
+    отвечал ошибкой сервера: PostgreSQL не принимает его в текстовом
+    поле вовсе.
+    """
+    client.force_login(admin)
+    response = client.get(url)
+
+    assert response.status_code < 500, f"{url} → {response.status_code}"
+    if hasattr(response, "streaming_content"):
+        b"".join(response.streaming_content)
+        response.close()

@@ -25,6 +25,24 @@ from .models import (DowntimeBreakdownDaily, FieldProductionDaily,
 TOP_ROWS = 8
 
 
+def _searchable(text: str) -> str:
+    """Строка поиска без управляющих знаков.
+
+    Параметры адреса приходят в представление, минуя форму, и потому
+    минуя проверки Django. Нулевой байт PostgreSQL в текстовом поле
+    не принимает вовсе: запрос с ним отвечает не пустой выборкой,
+    а ошибкой сервера. Ни в номере скважины, ни в названии
+    месторождения управляющих знаков не бывает.
+
+    Args:
+        text: Строка, пришедшая из адреса.
+
+    Returns:
+        Ту же строку без непечатаемых знаков, без краевых пробелов.
+    """
+    return "".join(char for char in text if char.isprintable()).strip()
+
+
 class ReportListView(LoginRequiredMixin, TemplateView):
     """Список загруженных суток.
 
@@ -238,7 +256,7 @@ class WellListView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs) -> dict:
         """Собрать перечень скважин с отбором по месторождению и номеру."""
         context = super().get_context_data(**kwargs)
-        search = self.request.GET.get("q", "").strip()
+        search = _searchable(self.request.GET.get("q", ""))
         field_id = self.request.GET.get("field", "")
 
         context["rows"] = wells_service.ranking(
