@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from datetime import date, datetime
+from math import isfinite
 
 import openpyxl
 from openpyxl.utils import get_column_letter
@@ -28,19 +29,28 @@ EMPTY = {"", "-", "—", "0", "нет", "н/д", "none"}
 
 
 def _num(value) -> float | None:
-    """Число или None. Строки вида «1 234,5» и «<4» тоже разбирает."""
+    """Число или None. Строки вида «1 234,5» и «<4» тоже разбирает.
+
+    Не-числа с точки зрения арифметики — NaN и бесконечность —
+    считаются отсутствующим значением. В ячейку они попадают
+    из сохранённого результата формулы и ведут себя хуже пустоты:
+    сумма с ними обращается в NaN, сравнения молча дают ложь,
+    а в данных графика NaN — недопустимая запись JSON, на которой
+    разбор падает и пропадают все диаграммы страницы разом.
+    """
     if value is None or isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        return float(value)
+        return float(value) if isfinite(value) else None
     text = str(value).strip().replace("\xa0", "").replace(" ", "")
     if not text or text.lower() in EMPTY:
         return None
     text = text.lstrip("<>≤≥~").replace(",", ".")
     try:
-        return float(text)
+        number = float(text)
     except ValueError:
         return None
+    return number if isfinite(number) else None
 
 
 def _text(value) -> str:

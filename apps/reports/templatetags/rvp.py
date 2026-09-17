@@ -8,6 +8,8 @@
 """
 from __future__ import annotations
 
+from math import isfinite
+
 from django import template
 from django.utils.safestring import mark_safe
 
@@ -37,6 +39,11 @@ def num(value, digits: int = 0) -> str:
         number = float(value)
     except (TypeError, ValueError):
         return str(value)
+    # NaN и бесконечность — не числа, а след испорченного значения.
+    # Показывать «nan» там, где ожидают тонны, нельзя: это выглядит
+    # как показатель, а не как его отсутствие.
+    if not isfinite(number):
+        return DASH
     text = f"{number:,.{int(digits)}f}"
     return text.replace(",", NBSP).replace(".", ",")
 
@@ -61,6 +68,8 @@ def signed(value, digits: int = 0) -> str:
         number = float(value)
     except (TypeError, ValueError):
         return str(value)
+    if not isfinite(number):
+        return DASH
     return ("+" if number >= 0 else "−") + num(abs(number), digits)
 
 
@@ -97,7 +106,7 @@ def share(value, total) -> str:
         part, whole = float(value), float(total)
     except (TypeError, ValueError):
         return DASH
-    if not whole:
+    if not whole or not isfinite(part) or not isfinite(whole):
         return DASH
     return num(part / whole * 100, 1) + NBSP + "%"
 
@@ -117,7 +126,10 @@ def bar(value, total) -> str:
         part, whole = float(value), float(total)
     except (TypeError, ValueError):
         return "0"
-    if not whole:
+    # Сравнения с NaN всегда ложны, и ограничение диапазона его
+    # пропускает: полоса выходила во всю ширину, то есть показывала
+    # долю там, где доли нет.
+    if not whole or not isfinite(part) or not isfinite(whole):
         return "0"
     return mark_safe(f"{max(0.0, min(100.0, part / whole * 100)):.1f}")
 

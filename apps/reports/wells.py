@@ -118,9 +118,14 @@ def spells(well: Well) -> list[Spell]:
     Returns:
         Отрезки от недавних к давним.
     """
+    # Порядок «список, затем дата», а не просто дата: ограничение
+    # уникальности прямо допускает, что скважина попадёт за одни сутки
+    # сразу в два списка — например, в простой и в запуски, если её
+    # в этот день пустили. При сборке подряд по датам такая строка
+    # разрывала простой надвое.
     rows = list(WellDaily.objects.filter(well=well)
                 .select_related("report")
-                .order_by("report__date")
+                .order_by("category", "report__date")
                 .values("report__date", "category", "qo", "reason"))
 
     found: list[Spell] = []
@@ -142,7 +147,10 @@ def spells(well: Well) -> list[Spell]:
                    "reason": row["reason"] or ""}
     if current is not None:
         found.append(_spell(current))
-    return list(reversed(found))
+    # Показываются от недавних к давним — как и прежде; порядок выборки
+    # теперь служит группировке, а не выводу.
+    found.sort(key=lambda spell: spell.start, reverse=True)
+    return found
 
 
 def _spell(raw: dict) -> Spell:

@@ -112,3 +112,63 @@ def test_short_name_is_built_from_parts() -> None:
         first_name="Иван", patronymic="Иванович")
     assert user.short_name == "Иванов И. И."
     assert user.full_name == "Иванов Иван Иванович"
+
+
+# --- сплошная проверка закрытости ---------------------------------------------
+#: Образцы для частей адреса. Конкретные значения неважны: проверяется
+#: не содержимое страницы, а то, пускает ли она без входа.
+SAMPLES = {"day": "2026-08-01", "pk": "1", "key": "k", "fmt": "pdf"}
+
+
+def _addresses() -> list[str]:
+    """Все адреса приложения, кроме панели управления.
+
+    Панель управления закрывает Django собственными средствами
+    и проверяется отдельно.
+    """
+    from django.urls import get_resolver
+
+    def walk(resolver, prefix=""):
+        for item in resolver.url_patterns:
+            if hasattr(item, "url_patterns"):
+                yield from walk(item, prefix + str(item.pattern))
+            else:
+                yield prefix + str(item.pattern)
+
+    found = []
+    for raw in walk(get_resolver()):
+        if raw.startswith("admin/"):
+            continue
+        url = "/" + raw
+        for name, value in SAMPLES.items():
+            for form in (f"<{name}>", f"<int:{name}>", f"<str:{name}>",
+                         f"<day:{name}>"):
+                url = url.replace(form, value)
+        if "<" in url or "(" in url:
+            continue
+        found.append(url)
+    return found
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("url", _addresses())
+def test_no_page_opens_without_login(client, url: str) -> None:
+    """Ни один адрес приложения не отвечает содержимым без входа.
+
+    Проверка идёт по списку адресов, а не по списку известных страниц:
+    представление, добавленное без `LoginRequiredMixin`, иначе осталось
+    бы незамеченным до первой утечки.
+
+    Исключения: форма входа и выход из системы.
+    """
+    if url in (reverse("accounts:login"), reverse("accounts:logout")):
+        pytest.skip("страница входа и выход закрытыми быть не могут")
+
+    response = client.get(url)
+    if hasattr(response, "streaming_content"):
+        b"".join(response.streaming_content)
+        response.close()
+
+    assert response.status_code == 302, f"{url} открылся без входа"
+    assert reverse("accounts:login") in response.headers.get("Location", ""), (
+        f"{url} увёл не на форму входа")

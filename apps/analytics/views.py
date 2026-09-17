@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tempfile
 from datetime import date, datetime, timedelta
+from math import isfinite
 from io import BytesIO
 from pathlib import Path
 
@@ -162,6 +163,19 @@ class SummaryView(LoginRequiredMixin, TemplateView):
         context["chart_reasons"] = self._rows(data["reasons"], "reason__name")
         return context
 
+    @staticmethod
+    def _plottable(value) -> float | None:
+        """Значение для графика или None.
+
+        NaN в данных графика — недопустимая запись JSON: разбор в браузере
+        на ней останавливается, и пропадают все диаграммы страницы разом,
+        а не одна точка. Такое значение приходит из испорченной ячейки
+        рапорта, загруженного до того, как разбор стал их отсеивать.
+        """
+        if value is None:
+            return None
+        return value if isfinite(value) else None
+
     def _daily(self, data: dict) -> dict:
         """Ряд суточной добычи вместе с пропусками — для графика.
 
@@ -184,14 +198,17 @@ class SummaryView(LoginRequiredMixin, TemplateView):
         while day <= last:
             row = by_day.get(day)
             labels.append(day.strftime("%d.%m"))
-            fact.append(row["production__closed_day"] if row else None)
-            plan.append(row["production__plan_bp_day"] if row else None)
+            fact.append(self._plottable(
+                row["production__closed_day"] if row else None))
+            plan.append(self._plottable(
+                row["production__plan_bp_day"] if row else None))
             day += timedelta(days=1)
         return {"labels": labels, "fact": fact, "plan": plan}
 
     def _rows(self, rows: list[dict], key: str) -> dict:
         """Названия и значения для горизонтальной диаграммы."""
-        chosen = [row for row in rows if row.get("qo")][:12]
+        chosen = [row for row in rows
+                  if row.get("qo") and isfinite(row["qo"])][:12]
         return {"labels": [str(row[key]) for row in chosen],
                 "values": [round(row["qo"], 1) for row in chosen]}
 

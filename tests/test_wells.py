@@ -235,3 +235,48 @@ def test_unknown_well_gives_404(client) -> None:
     client.force_login(user)
     assert client.get(
         reverse("reports:well", args=[999999])).status_code == 404
+
+
+@pytest.mark.django_db
+def test_spells_merge_within_one_list_only(well: Well) -> None:
+    """Отрезок простоя не рвётся из-за строки в другом списке.
+
+    Ограничение уникальности — «сутки, скважина, список» — прямо
+    допускает, что скважина попадёт в двое суток сразу в два списка:
+    например, в простой и в запуски, если её в этот день пустили.
+    Сборка отрезков шла подряд по датам, не разделяя списки, и такая
+    строка разрывала простой надвое: «стояла 1–2» и «стояла 3» вместо
+    «стояла 1–3».
+    """
+    for day in (1, 2, 3):
+        report = Report.objects.create(date=date(2026, 8, day))
+        WellDaily.objects.create(report=report, well=well,
+                                 category=WellDaily.Category.DOWNTIME,
+                                 qo=10.0)
+        if day == 2:
+            WellDaily.objects.create(report=report, well=well,
+                                     category=WellDaily.Category.STARTUP,
+                                     qo=0.0)
+
+    downtime = [item for item in wells.spells(well)
+                if item.category == WellDaily.Category.DOWNTIME]
+
+    assert len(downtime) == 1, "простой разорван строкой из другого списка"
+    assert downtime[0].days == 3
+    assert (downtime[0].start, downtime[0].end) == (date(2026, 8, 1),
+                                                    date(2026, 8, 3))
+
+
+@pytest.mark.django_db
+def test_spells_are_listed_from_recent_to_old(well: Well) -> None:
+    """Порядок вывода прежний: сверху недавние отрезки."""
+    for day in (1, 5, 6):
+        report = Report.objects.create(date=date(2026, 8, day))
+        WellDaily.objects.create(report=report, well=well,
+                                 category=WellDaily.Category.DOWNTIME,
+                                 qo=1.0)
+
+    found = wells.spells(well)
+
+    assert [item.start for item in found] == [date(2026, 8, 5),
+                                              date(2026, 8, 1)]
