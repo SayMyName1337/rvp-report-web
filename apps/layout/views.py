@@ -144,6 +144,18 @@ class ApplyView(OperatorRequired, View):
             return redirect(self._back(gap))
 
         sheet = services.open_report(upload.file.path)
+        # Клетка обязана лежать в пределах листа. Номера приходят полем
+        # формы, а не только щелчком по таблице: за пределами листа
+        # openpyxl бросает исключение, а отрицательная строка ошибки
+        # не вызывает — из неё выводится и запоминается правило вида
+        # «E-1», которое не совпадёт уже никогда.
+        if not (1 <= row <= sheet.max_row and 1 <= col <= sheet.max_col):
+            messages.error(
+                request, "Эта клетка вне листа рапорта: на листе "
+                f"{sheet.max_row} строк и {sheet.max_col} столбцов. "
+                "Выберите клетку в таблице.")
+            return redirect(self._back(gap))
+
         block_top = max(1, row - 40)
         kind, value = services.derive_rule(sheet, row, col, gap.part,
                                            block_top)

@@ -11,6 +11,7 @@ import hashlib
 import io
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -18,6 +19,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import Role, User, ensure_roles
+from apps.reports import forms
 from apps.reports.forms import UploadForm
 from apps.reports.models import Report, Upload
 
@@ -301,3 +303,47 @@ def test_history_lists_uploads(client, operator: User, sample: Path) -> None:
     page = client.get(reverse("reports:uploads")).content.decode()
     assert sample.name in page
     assert "действующая" in page
+
+
+@pytest.mark.django_db
+def test_book_that_unpacks_too_far_is_refused(operator, client) -> None:
+    """Книга, неправдоподобно большая в развёрнутом виде, не принимается.
+
+    Книга .xlsx — это zip-архив, и объём после распаковки ничем
+    не связан с объёмом файла: хорошо сжимаемый XML разворачивается
+    в сотни раз. Проверка читает оглавление архива, распаковки
+    не требует, и потому не зависит от того, сколько памяти есть
+    на узле.
+
+    Предел занижается на время проверки: строить настоящую «бомбу»
+    ради этого не нужно — проверяется сработает ли правило, а не
+    выдержит ли узел.
+    """
+    files = report_files()
+    if not files:
+        pytest.skip("нет рапортов для проверки")
+
+    client.force_login(operator)
+    with mock.patch.object(forms, "MAX_UNPACKED_MB", 1):
+        with open(files[0], "rb") as handle:
+            response = client.post(
+                reverse("reports:upload"),
+                {"file": SimpleUploadedFile(files[0].name, handle.read())})
+
+    assert response.status_code == 200, "файл приняли"
+    assert "развёрнутом виде" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_ordinary_report_passes_the_unpacked_check(operator, client) -> None:
+    """Обычный рапорт проверку размера в развёрнутом виде проходит."""
+    files = report_files()
+    if not files:
+        pytest.skip("нет рапортов для проверки")
+
+    with open(files[0], "rb") as handle:
+        form = UploadForm(
+            files={"file": SimpleUploadedFile(files[0].name, handle.read())},
+            data={"note": "проверка"})
+
+    assert form.is_valid(), form.errors

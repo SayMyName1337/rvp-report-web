@@ -560,3 +560,53 @@ def test_gas_deviation_without_plan_is_empty() -> None:
     row = summary.gas(periods.period_of("month", date(2026, 8, 1)))[0]
 
     assert row["dev"] is None
+
+
+# --- согласие чисел между собой ----------------------------------------------
+@pytest.mark.django_db
+def test_deviation_matches_the_numbers_shown_beside_it() -> None:
+    """Отклонение равно разности величин в том виде, как они показаны.
+
+    На дашборде стояло «Добыча 116 987, План БП 116 342, Отклонение
+    +646»: настоящая разность 645,54 округлялась вверх, а слагаемые —
+    вниз. Каждое число верно по отдельности, но таблицу нельзя
+    проверить вычитанием, а доклад читают с листа.
+    """
+    _day(1, closed=116987.16, plan=116341.61585)
+    period = periods.period_of("month", date(2026, 8, 1))
+
+    result = summary.production(period)
+
+    assert round(result["closed"]) - round(result["plan_bp"]) == (
+        round(result["dev_bp"]))
+    assert result["dev_bp"] == pytest.approx(645.0)
+
+
+@pytest.mark.django_db
+def test_deviation_without_a_plan_is_absent() -> None:
+    """Без плана отклонение не выдумывается."""
+    report = Report.objects.create(date=date(2026, 8, 1))
+    ProductionDaily.objects.create(report=report, closed_day=8000.0)
+
+    result = summary.production(periods.period_of("month", date(2026, 8, 1)))
+
+    assert result["dev_bp"] is None
+    assert result["dev_sg"] is None
+
+
+@pytest.mark.django_db
+def test_month_table_on_the_dashboard_adds_up(client) -> None:
+    """Строки таблицы месяца на дашборде сходятся между собой."""
+    _day(1, closed=116987.16, plan=116341.61585)
+    user = User.objects.create_user(username="chief", password="x" * 14,
+                                    must_change_password=False)
+    client.force_login(user)
+
+    # split() без аргумента разбивает и по неразрывному пробелу,
+    # поэтому разряды чисел сравниваются с обычным пробелом.
+    page = " ".join(client.get(
+        reverse("analytics:dashboard")).content.decode().split())
+
+    assert "116 987" in page
+    assert "116 342" in page
+    assert "+645" in page, "отклонение не сходится с показанными числами"

@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from math import isfinite
 
 from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
@@ -110,11 +111,36 @@ def production(period: Period) -> dict:
 
     closed = totals["closed"] or 0.0
     plan_bp = totals["plan_bp"] or 0.0
-    totals["dev_bp"] = closed - plan_bp if plan_bp else None
-    totals["dev_sg"] = (closed - (totals["plan_sg"] or 0.0)
-                        if totals["plan_sg"] else None)
+    totals["dev_bp"] = _deviation(closed, plan_bp)
+    totals["dev_sg"] = _deviation(closed, totals["plan_sg"])
     totals["declared"] = _declared_cumulative(period, closed)
     return totals
+
+
+def _deviation(fact: float, plan: float | None) -> float | None:
+    """Отклонение факта от плана в том виде, в каком его читают.
+
+    Считается по округлённым величинам — тем самым, что стоят рядом
+    на странице, а не по исходным. Иначе получается таблица, которую
+    нельзя проверить сложением: 116 987 минус 116 342 даёт 645,
+    а в строке «Отклонение» стоит 646, потому что настоящая разность
+    645,54 округляется вверх, а каждое слагаемое — вниз. Оба числа
+    верны по отдельности, но доклад читают с листа и проверяют
+    в уме, и расхождение на единицу подрывает доверие ко всей
+    таблице сильнее, чем потеря половины тонны из ста тысяч.
+
+    Args:
+        fact: Фактическая величина.
+        plan: Плановая величина; None или ноль — отклонения нет.
+
+    Returns:
+        Отклонение либо None, если сравнивать не с чем.
+    """
+    # Округлять NaN нельзя — округление такого значения бросает
+    # исключение. Сравнивать с планом тоже нечего: это не число.
+    if not plan or not isfinite(fact) or not isfinite(plan):
+        return None
+    return float(round(fact) - round(plan))
 
 
 def _declared_cumulative(period: Period, computed: float) -> dict | None:
@@ -142,7 +168,10 @@ def _declared_cumulative(period: Period, computed: float) -> dict | None:
         return None
 
     declared = last.production.cumulative_month
-    gap = computed - declared
+    # Расхождение показывается рядом с обеими величинами с одним
+    # знаком после запятой — по ним и считается, чтобы строку можно
+    # было проверить вычитанием.
+    gap = round(computed, 1) - round(declared, 1)
     return {"value": declared, "on": last.date, "gap": gap,
             "notable": abs(gap) > CUMULATIVE_TOLERANCE * abs(declared)}
 

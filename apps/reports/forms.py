@@ -24,6 +24,15 @@ from .models import Upload
 #: Первые байты книги Excel: это zip-архив.
 ZIP_SIGNATURE = b"PK\x03\x04"
 
+#: Предельный размер книги в развёрнутом виде. Книга .xlsx — это
+#: zip-архив, и его объём после распаковки ничем не связан с объёмом
+#: файла: двадцать пять мегабайт хорошо сжимаемого XML разворачиваются
+#: в десятки гигабайт и кладут узел по памяти. Настоящий суточный
+#: рапорт занимает около 300 КБ и разворачивается в 4,4 МБ, так что
+#: запас здесь стократный. Проверка читает оглавление архива
+#: и распаковки не требует.
+MAX_UNPACKED_MB = 500
+
 #: Лист, на котором лежит суточный рапорт. Если его нет, книга,
 #: скорее всего, не та — но разбор умеет искать лист и по содержимому,
 #: поэтому проверка нестрогая и служит подсказкой.
@@ -123,13 +132,15 @@ class UploadForm(forms.Form):
         """Книга должна открываться и содержать листы.
 
         Raises:
-            ValidationError: Если архив повреждён или пуст.
+            ValidationError: Если архив повреждён, пуст или неправдоподобно
+                велик в развёрнутом виде.
         """
         uploaded.seek(0)
         try:
             with zipfile.ZipFile(uploaded) as book:
                 broken = book.testzip()
                 names = book.namelist()
+                unpacked = sum(item.file_size for item in book.infolist())
         except zipfile.BadZipFile:
             raise forms.ValidationError(
                 "Книга Excel повреждена и не открывается. Попробуйте "
@@ -145,6 +156,15 @@ class UploadForm(forms.Form):
             raise forms.ValidationError(
                 "Это архив, но не книга Excel. Выберите файл суточного "
                 "рапорта.")
+
+        limit = MAX_UNPACKED_MB * 1024 * 1024
+        if unpacked > limit:
+            raise forms.ValidationError(
+                "В развёрнутом виде книга занимает %(size)s при допустимых "
+                "%(limit)s. Суточный рапорт разворачивается в несколько "
+                "мегабайт — проверьте, что выбран нужный файл.",
+                params={"size": filesizeformat(unpacked),
+                        "limit": filesizeformat(limit)})
 
     def clean(self):
         """Предупредить о повторной загрузке того же самого файла.

@@ -294,3 +294,39 @@ def test_sheet_is_not_rebuilt_twice(loaded: Report) -> None:
     second = services.build_deck(loaded, Deck.Kind.SHEET)
 
     assert first.pk == second.pk
+
+
+@pytest.mark.django_db
+def test_deck_is_rebuilt_when_its_file_is_gone(loaded: Report) -> None:
+    """Запись без файла пересобирается, а не роняет выдачу.
+
+    Такое состояние возникает, если хранилище чистили ради места,
+    восстанавливали базу отдельно от файлов или уборка не довела дело
+    до конца. Исходный рапорт при этом на месте, и собрать материал
+    заново можно — но прежняя запись мешала: ограничение уникальности
+    «загрузка, вид» не даёт завести вторую.
+    """
+    first = services.build_deck(loaded)
+    Path(first.file.path).unlink()
+
+    again = services.build_deck(loaded)
+
+    assert Path(again.file.path).exists(), "материал не пересобран"
+    assert Deck.objects.filter(report=loaded,
+                               kind=Deck.Kind.DECK).count() == 1
+
+
+@pytest.mark.django_db
+def test_download_works_after_the_file_was_removed(client, loaded: Report,
+                                                   viewer: User) -> None:
+    """Выдача после пропажи файла отвечает файлом, а не ошибкой сервера."""
+    deck = services.build_deck(loaded)
+    Path(deck.file.path).unlink()
+    client.force_login(viewer)
+
+    response = client.get(reverse("decks:pptx", args=[loaded.date]))
+
+    assert response.status_code == 200
+    body = b"".join(response.streaming_content)
+    response.close()
+    assert body[:2] == b"PK", "отдан не файл PowerPoint"

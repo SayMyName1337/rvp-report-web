@@ -82,8 +82,15 @@ def build_deck(report: Report, kind: str = Deck.Kind.DECK) -> Deck:
         FileNotFoundError: Если исходный файл рапорта не сохранён.
     """
     existing = current_deck(report, kind)
-    if existing is not None and existing.file:
-        return existing
+    if existing is not None:
+        if existing.file and existing.file.storage.exists(existing.file.name):
+            return existing
+        # Запись есть, а файла за ней нет: хранилище чистили ради места,
+        # восстанавливали базу из копии отдельно от файлов либо уборка
+        # не довела дело до конца. Пересобрать можно — исходный рапорт
+        # лежит отдельно, — но ограничение уникальности «загрузка, вид»
+        # не даст завести вторую запись, поэтому прежняя убирается.
+        existing.delete()
 
     upload = report.uploads.filter(is_current=True).first()
     if upload is None or not upload.file:
