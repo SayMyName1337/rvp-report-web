@@ -9,6 +9,7 @@ PowerPoint растит строку таблицы, если содержимо
 """
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 import pytest
@@ -139,3 +140,156 @@ def test_tables_do_not_cover_block_titles(built: Path) -> None:
         for table in tables:
             assert _apart(title[:4], table), (
                 f"таблица накрывает заголовок «{title[4]}»")
+
+
+# --- перенос строк -----------------------------------------------------------
+#: Столбцы, в которые попадают номера скважин и время: их укорачивать
+#: нельзя, иначе строка теряет то, чем она опознаётся.
+def _cells(path: Path) -> list[tuple]:
+    """Ячейки всех таблиц листа вместе с шириной их столбца."""
+    prs = Presentation(str(path))
+    found = []
+    for shape in prs.slides[0].shapes:
+        if not shape.has_table:
+            continue
+        table = shape.table
+        widths = [column.width / 360000 for column in table.columns]
+        head = table.cell(0, 0).text.strip()[:20]
+        for row in range(1, len(table.rows)):
+            for col in range(len(table.columns)):
+                found.append((head, row, col, widths[col],
+                              table.cell(row, col).text.strip()))
+    return found
+
+
+def _sheet_for(path: Path, folder) -> Path:
+    """Собрать лист по указанному рапорту."""
+    output = folder / f"{path.stem}.pptx"
+    sheet.build(load(path), str(output))
+    return output
+
+
+def test_no_data_cell_wraps(report_path: Path, tmp_path) -> None:
+    """Значение в ячейке помещается в свой столбец одной строкой.
+
+    Это главная проверка раскладки листа, и заметить нарушение иначе
+    нельзя. Не влезшую строку PowerPoint переносит и растит ради неё
+    строку таблицы; в самом файле у фигуры при этом остаётся заданная
+    высота, поэтому сравнение рамок ничего не находит. Видно только
+    при показе — 17.09.2026 так наехали друг на друга таблица бурения
+    и промышленная безопасность, а вывод на режим залез в подвал.
+    """
+    built = _sheet_for(report_path, tmp_path)
+    wrapped = [f"«{head}» строка {row} столбец {col} "
+               f"({width:.2f} см): {text!r}"
+               for head, row, col, width, text in _cells(built)
+               if text and not sheet.fits(text, width, sheet.SIZE_TABLE)]
+
+    assert not wrapped, "переносятся: " + "; ".join(wrapped)
+
+
+def test_nothing_reaches_the_footer(report_path: Path, tmp_path) -> None:
+    """Ни одна таблица не доходит до подвала листа."""
+    prs = Presentation(str(_sheet_for(report_path, tmp_path)))
+    late = [shape for shape in prs.slides[0].shapes
+            if shape.has_table
+            and (shape.top + shape.height) / 360000 > sheet.FOOTER_TOP]
+
+    assert not late, "таблица уходит в подвал"
+
+
+def test_columns_do_not_reach_the_bottom_band(report_path: Path,
+                                              tmp_path) -> None:
+    """Столбцы верхней части не заходят в нижнюю полосу.
+
+    Нижняя полоса стоит на постоянном отступе, и блок, выросший
+    сверху, наезжает на неё.
+    """
+    prs = Presentation(str(_sheet_for(report_path, tmp_path)))
+    crossing = [shape for shape in prs.slides[0].shapes
+                if shape.has_table
+                and shape.top / 360000 < sheet.BAND
+                < (shape.top + shape.height) / 360000]
+
+    assert not crossing, "блок заходит в нижнюю полосу"
+
+
+@pytest.mark.parametrize("text,width,expected", [
+    ("11305", 1.35, "11305"),
+    ("15.09 15:40", 2.51, "15.09 15:40"),
+    ("Смена ГНО", 3.04, "Смена ГНО"),
+    ("устранение \nПП 28 из 39", 5.0, "устранение ПП 28 из 39"),
+])
+def test_fit_keeps_what_already_fits(text: str, width: float,
+                                     expected: str) -> None:
+    """Номера скважин и время не укорачиваются.
+
+    Оценка ширины по числу знаков резала их: «11305» и «Простой»
+    одинаковой длины, но занимают разное место.
+    """
+    assert sheet.fit(text, width) == expected
+
+
+def test_fit_shortens_what_does_not() -> None:
+    """Длинное название укорачивается с многоточием."""
+    result = sheet.fit("Западно-Хоседаюское", 2.2)
+
+    assert result.endswith("…")
+    assert sheet.fits(result, 2.2, sheet.SIZE_TABLE)
+
+
+def test_fit_removes_line_breaks() -> None:
+    """Перевод строки внутри значения убирается.
+
+    Такое значение растит строку само по себе, какой бы ширины
+    ни был столбец: в графе забоя встречается «устранение\nПП 28 из 39».
+    """
+    assert "\n" not in sheet.fit("устранение \nПП 28 из 39", 10.0)
+
+
+def test_long_names_do_not_break_the_layout(report_path: Path,
+                                            tmp_path) -> None:
+    """Лист выдерживает названия длиннее нынешних.
+
+    Проверка по действующим рапортам показывает лишь то, что раскладка
+    сходится на сегодняшних данных. Она и сходилась — пока в графе
+    забоя не появилось «устранение ПП 28 из 39» с переводом строки
+    внутри. Здесь текстовые поля намеренно растягиваются: месторождения,
+    подрядчики, причины, названия участков.
+    """
+    daily = copy.deepcopy(load(report_path))
+    long_name = "Восточно-Северо-Ошкотынское нефтегазоконденсатное"
+
+    for item in daily.stock_by_field:
+        item.name = long_name
+    daily.production.by_field = [(long_name, value)
+                                 for _name, value in daily.production.by_field]
+    for item in daily.drilling:
+        item.contractor = long_name
+        item.field_name = long_name
+        item.current_depth_text = "устранение \nприхвата ПП 28 из 39"
+    for item in daily.ramp_up:
+        item.field_name = long_name
+        item.gtm = "смена глубинно-насосного оборудования"
+    for item in daily.pigging:
+        item.section = "Куст 1 Ю.Сюрхаратинское — СОД Южно-Сюрхаратинское"
+    daily.downtime_breakdown = [
+        ("текущий простой по ограничению приёма нефти", wells, qo)
+        for _reason, wells, qo in daily.downtime_breakdown]
+
+    output = tmp_path / "длинные.pptx"
+    sheet.build(daily, str(output))
+
+    wrapped = [f"«{head}» строка {row} столбец {col}: {text!r}"
+               for head, row, col, width, text in _cells(output)
+               if text and not sheet.fits(text, width, sheet.SIZE_TABLE)]
+    assert not wrapped, "переносятся: " + "; ".join(wrapped)
+
+    prs = Presentation(str(output))
+    for shape in prs.slides[0].shapes:
+        if not shape.has_table:
+            continue
+        bottom = (shape.top + shape.height) / 360000
+        assert bottom <= sheet.FOOTER_TOP, "таблица уходит в подвал"
+        assert not (shape.top / 360000 < sheet.BAND < bottom), (
+            "блок заходит в нижнюю полосу")

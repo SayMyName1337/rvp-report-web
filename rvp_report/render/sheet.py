@@ -57,9 +57,26 @@ SIZE_KPI_LABEL = Pt(7)
 SIZE_BLOCK = Pt(10)
 SIZE_FOOT = Pt(7)
 
-#: Высота строки и заголовка таблицы листа.
+#: Высота строки и заголовка таблицы листа. Заголовок выше строки
+#: намеренно: подписи столбцов бывают длиннее своего столбца
+#: и переносятся на вторую строку. Строка данных переноситься
+#: не должна — за этим следит `fit`.
 ROW_H = 0.46
-HEAD_H = 0.5
+HEAD_H = 0.65
+
+#: Ширина знака в долях кегля. Одним числом здесь не обойтись:
+#: «11305» и «Простой» одинаковой длины, но занимают разное место,
+#: и общая оценка либо переносит слова, либо режет номера скважин.
+#: Значения взяты с запасом от настоящих для Segoe UI — ошибка в плюс
+#: укорачивает подпись, ошибка в минус растит строку и ломает раскладку.
+CHAR_WIDTH = {"digit": 0.55, "upper": 0.78, "lower": 0.72}
+
+#: Поля ячейки слева и справа вместе, см. Должны совпадать с теми,
+#: что проставляет `Deck._cell`.
+CELL_PAD = 0.36
+
+#: Сантиметры в одном пункте.
+PT_CM = 0.03527
 
 #: Пометка расчётной величины.
 DERIVED = "расч."
@@ -78,6 +95,86 @@ def _short(text, limit: int) -> str:
     """Укоротить подпись до предела, обозначив обрыв многоточием."""
     text = str(text or "").strip()
     return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
+
+
+def _column_widths(total: float, widths: list | None,
+                   count: int) -> list[float]:
+    """Ширины столбцов в сантиметрах.
+
+    Доли приводятся к ширине таблицы так же, как это делает
+    `Deck.table`; без долей столбцы равны.
+
+    Args:
+        total: Ширина таблицы, см.
+        widths: Доли столбцов либо None.
+        count: Число столбцов.
+
+    Returns:
+        Ширину каждого столбца в сантиметрах.
+    """
+    if not widths:
+        return [total / count] * count
+    share = sum(widths)
+    return [total * part / share for part in widths]
+
+
+def text_width(text: str, size=SIZE_TABLE) -> float:
+    """Ширина строки в сантиметрах — оценка сверху.
+
+    Args:
+        text: Строка.
+        size: Кегль.
+
+    Returns:
+        Ширину, см.
+    """
+    em = size.pt * PT_CM
+    total = 0.0
+    for char in text:
+        if char.isdigit() or not char.isalpha():
+            total += CHAR_WIDTH["digit"]
+        elif char.isupper():
+            total += CHAR_WIDTH["upper"]
+        else:
+            total += CHAR_WIDTH["lower"]
+    return total * em
+
+
+def fits(text: str, width: float, size=SIZE_TABLE) -> bool:
+    """Помещается ли текст в столбец одной строкой."""
+    return text_width(text, size) <= width - CELL_PAD
+
+
+def fit(text, width: float, size=SIZE_TABLE) -> str:
+    """Текст, укороченный так, чтобы столбец не перенёс его на вторую
+    строку.
+
+    Переносы внутри значения убираются: в рапорте встречаются ячейки
+    с переводом строки — например, «устранение
+ПП 28 из 39» в графе
+    забоя, — и такое значение растит строку само по себе, независимо
+    от ширины столбца.
+
+    Args:
+        text: Значение ячейки.
+        width: Ширина столбца, см.
+        size: Кегль текста.
+
+    Returns:
+        Значение, помещающееся в столбец одной строкой.
+    """
+    value = " ".join(str("" if text is None else text).split())
+    if fits(value, width, size):
+        return value
+    room = width - CELL_PAD - text_width("…", size)
+    if room <= 0:
+        return ""
+    cut = ""
+    for char in value:
+        if text_width(cut + char, size) > room:
+            break
+        cut += char
+    return cut.rstrip() + "…" if cut else ""
 
 
 class Sheet:
@@ -113,7 +210,16 @@ class Sheet:
               rows: list, widths: list | None = None,
               aligns: list | None = None,
               cell_colors: dict | None = None) -> float:
-        """Таблица листа. Возвращает отступ под ней."""
+        """Таблица листа. Возвращает отступ под ней.
+
+        Значения ячеек укорачиваются под ширину своего столбца здесь,
+        а не в каждом блоке по отдельности: забыть об этом в одном
+        блоке достаточно, чтобы таблица выросла и наехала на соседний.
+        Подписи столбцов не трогаются — под них отведены две строки.
+        """
+        columns = _column_widths(w, widths, len(headers))
+        rows = [[fit(value, columns[index], SIZE_TABLE)
+                 for index, value in enumerate(row)] for row in rows]
         self.deck.table(self.slide, x, y, w, headers, rows, widths=widths,
                         row_h=ROW_H, head_h=HEAD_H, aligns=aligns,
                         cell_colors=cell_colors, size=SIZE_TABLE,
@@ -438,7 +544,10 @@ def _drilling(sheet: Sheet, r: DailyReport, x: float, y: float,
     return sheet.table(x, top, w,
                        ["Подрядчик", "Месторожд.", "Скв.", "Проект, м",
                         "Забой, м"],
-                       rows, widths=[1.5, 1.3, 0.8, 1.0, 1.0])
+                       # В графе забоя бывает не число, а состояние
+                       # работ — «устранение ПП 28 из 39». Подрядчику
+                       # же хватает узкого столбца: там «ОУБР» и «БКЕ».
+                       rows, widths=[1.0, 1.2, 0.8, 1.0, 1.6])
 
 
 def _ramp_up(sheet: Sheet, r: DailyReport, x: float, y: float,
